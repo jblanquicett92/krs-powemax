@@ -1,4 +1,4 @@
-package com.example.powermax_1rm
+package com.krs.powermax1rm
 
 import io.flutter.embedding.android.FlutterActivity
 
