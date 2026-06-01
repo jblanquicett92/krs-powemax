@@ -1,0 +1,38 @@
+name: powermax_1rm
+description: A premium, offline-first 1RM Calculator & AI Gym Coach in Flutter.
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Localisation
+  flutter_localizations:
+    sdk: flutter
+  intl: ^0.20.2
+
+  # State Management
+  flutter_riverpod: ^2.5.1
+
+  # Local AI (Gemma/SmolLM local inference)
+  flutter_gemma: ^0.16.3
+
+  # UI & Design
+  google_fonts: ^6.2.1
+  fl_chart: ^0.66.0
+  shared_preferences: ^2.2.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+
+  # Assets configuration for models (in case the user wants to bundle it directly)
+  assets:
+    - assets/models/
