@@ -40,7 +40,7 @@ class AppLocalizations {
       'history_chart_title': 'Strength Evolution (1RM)',
       
       // AI Coach
-      'ai_title': 'Your Team of Personalized Coaches',
+      'ai_title': 'My Coach',
       'ai_subtitle': '100% offline & private trainers',
       'ai_chat_hint': 'Ask about sets, routines, or exercises...',
       'ai_model_not_installed': 'Trainers are not active yet.',
@@ -53,11 +53,11 @@ class AppLocalizations {
       'ai_status_active': 'Coaches Active (Offline)',
       'ai_status_inactive': 'Coaches Inactive',
       'ai_download_warning': 'Do not close the app. It will be saved permanently and 100% offline.',
-      'coach_cristian_specialty': 'Muscle Hypertrophy 💪',
+      'coach_cristian_specialty': 'Muscle Hypertrophy',
       'coach_cristian_desc': 'Giant sets, tempos, and RPE 8-10 to gain maximum muscle mass and pump.',
-      'coach_ana_specialty': 'Definition & Nutrition 🍎',
+      'coach_ana_specialty': 'Definition & Nutrition',
       'coach_ana_desc': 'Metabolic cardio, smart caloric deficit, and supplementation to lean out.',
-      'coach_igor_specialty': 'Maximal Strength & Power ⚡',
+      'coach_igor_specialty': 'Maximal Strength & Power',
       'coach_igor_desc': 'Heavy lifting 1RM progression at low reps and complete rest.',
       
       // Settings Screen
@@ -98,7 +98,7 @@ class AppLocalizations {
       'history_chart_title': 'Evolución de Fuerza (1RM)',
       
       // AI Coach
-      'ai_title': 'Tu Equipo de Entrenadores personalizados',
+      'ai_title': 'Mi Coach',
       'ai_subtitle': 'Entrenadores 100% offline y privados',
       'ai_chat_hint': 'Pregunta sobre series, rutinas o ejercicios...',
       'ai_model_not_installed': 'Los entrenadores no están activos.',
@@ -111,11 +111,11 @@ class AppLocalizations {
       'ai_status_active': 'Coaches Activos (Offline)',
       'ai_status_inactive': 'Coaches Desactivados',
       'ai_download_warning': 'No cierres la app. Se guardará de forma permanente y 100% offline.',
-      'coach_cristian_specialty': 'Hipertrofia Muscular 💪',
+      'coach_cristian_specialty': 'Hipertrofia Muscular',
       'coach_cristian_desc': 'Series gigantes, tempos y RPE 8-10 para ganar la máxima masa muscular y bombeo.',
-      'coach_ana_specialty': 'Definición y Nutrición 🍎',
+      'coach_ana_specialty': 'Definición y Nutrición',
       'coach_ana_desc': 'Cardio metabólico, déficit calórico inteligente y suplementación para secar.',
-      'coach_igor_specialty': 'Fuerza Máxima y Potencia ⚡',
+      'coach_igor_specialty': 'Fuerza Máxima y Potencia',
       'coach_igor_desc': 'Progresión de cargas pesadas de 1RM a bajas reps y descansos completos.',
       
       // Settings Screen
@@ -156,7 +156,7 @@ class AppLocalizations {
       'history_chart_title': 'Evolução de Força (1RM)',
       
       // AI Coach
-      'ai_title': 'Sua Equipe de Treinadores Personalizados',
+      'ai_title': 'Meu Coach',
       'ai_subtitle': 'Treinadores 100% offline e privados',
       'ai_chat_hint': 'Pergunte sobre séries, rotinas ou exercícios...',
       'ai_model_not_installed': 'Os treinadores não estão ativos.',
@@ -169,11 +169,11 @@ class AppLocalizations {
       'ai_status_active': 'Treinadores Ativos (Offline)',
       'ai_status_inactive': 'Treinadores Desativados',
       'ai_download_warning': 'Não feche o app. Ele será salvo permanentemente e 100% offline.',
-      'coach_cristian_specialty': 'Hipertrofia Muscular 💪',
+      'coach_cristian_specialty': 'Hipertrofia Muscular',
       'coach_cristian_desc': 'Séries gigantes, tempos e RPE 8-10 para ganhar o máximo de massa muscular e pump.',
-      'coach_ana_specialty': 'Definição e Nutrição 🍎',
+      'coach_ana_specialty': 'Definição e Nutrição',
       'coach_ana_desc': 'Cardio metabólico, déficit calórico inteligente e suplementação para secar.',
-      'coach_igor_specialty': 'Força Máxima e Potência ⚡',
+      'coach_igor_specialty': 'Força Máxima e Potência',
       'coach_igor_desc': 'Progressão de cargas pesadas de 1RM a baixas repetições e descansos completos.',
       
       // Settings Screen

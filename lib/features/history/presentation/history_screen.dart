@@ -138,9 +138,9 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                   ListView.builder(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    itemCount: records.length,
+                    itemCount: filteredRecords.length,
                     itemBuilder: (context, index) {
-                      final record = records[index];
+                      final record = filteredRecords[index];
                       return _buildRecordCard(context, ref, record, historyNotifier);
                     },
                   ),

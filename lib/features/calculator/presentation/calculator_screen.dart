@@ -64,6 +64,8 @@ class CalculatorScreen extends ConsumerWidget {
               value: calcState.weight,
               unit: settings.weightUnit,
               onChanged: calcNotifier.updateWeight,
+              minWeight: settings.minWeight,
+              maxWeight: settings.maxWeight,
             ),
             const SizedBox(height: 20),
 
@@ -480,12 +482,16 @@ class WeightSelectorInput extends StatefulWidget {
   final double value;
   final String unit;
   final ValueChanged<double> onChanged;
+  final double minWeight;
+  final double maxWeight;
 
   const WeightSelectorInput({
     super.key,
     required this.value,
     required this.unit,
     required this.onChanged,
+    this.minWeight = 0.0,
+    this.maxWeight = 300.0,
   });
 
   @override
@@ -562,8 +568,8 @@ class _WeightSelectorInputState extends State<WeightSelectorInput> {
                   ),
                   onChanged: (val) {
                     final double? parsed = double.tryParse(val.replaceAll(',', '.'));
-                    if (parsed != null && parsed >= 0) {
-                      widget.onChanged(parsed);
+                    if (parsed != null && parsed >= widget.minWeight) {
+                      widget.onChanged(parsed.clamp(widget.minWeight, widget.maxWeight));
                     }
                   },
                 ),
@@ -571,10 +577,10 @@ class _WeightSelectorInputState extends State<WeightSelectorInput> {
             ],
           ),
           Slider(
-            value: widget.value.clamp(0.0, 300.0),
-            min: 0,
-            max: 300,
-            divisions: 600,
+            value: widget.value.clamp(widget.minWeight, widget.maxWeight),
+            min: widget.minWeight,
+            max: widget.maxWeight,
+            divisions: ((widget.maxWeight - widget.minWeight) * 2).toInt().clamp(1, 1200),
             label: widget.value.toStringAsFixed(1),
             onChanged: widget.onChanged,
           ),

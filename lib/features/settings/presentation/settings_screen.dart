@@ -106,7 +106,19 @@ class SettingsScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 32),
 
-            // SECCIÓN 2: ACERCA DE LA APLICACIÓN
+            // SECCIÓN 2: RANGO DEL SELECTOR DE PESO
+            _buildSectionHeader(context, "Rango de Peso"),
+            const SizedBox(height: 8),
+
+            _WeightRangeTile(
+              minWeight: settings.minWeight,
+              maxWeight: settings.maxWeight,
+              onMinChanged: (v) => settingsNotifier.setMinWeight(v),
+              onMaxChanged: (v) => settingsNotifier.setMaxWeight(v),
+            ),
+            const SizedBox(height: 32),
+
+            // SECCIÓN 3: ACERCA DE LA APLICACIÓN
             _buildSectionHeader(context, context.tr('settings_about', ref)),
             const SizedBox(height: 8),
 
@@ -252,3 +264,225 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 }
+
+// Widget aislado para editar el rango de peso mínimo y máximo
+class _WeightRangeTile extends StatefulWidget {
+  final double minWeight;
+  final double maxWeight;
+  final ValueChanged<double> onMinChanged;
+  final ValueChanged<double> onMaxChanged;
+
+  const _WeightRangeTile({
+    required this.minWeight,
+    required this.maxWeight,
+    required this.onMinChanged,
+    required this.onMaxChanged,
+  });
+
+  @override
+  State<_WeightRangeTile> createState() => _WeightRangeTileState();
+}
+
+class _WeightRangeTileState extends State<_WeightRangeTile> {
+  late TextEditingController _minController;
+  late TextEditingController _maxController;
+  String? _errorMsg;
+
+  @override
+  void initState() {
+    super.initState();
+    _minController = TextEditingController(text: widget.minWeight.toStringAsFixed(1));
+    _maxController = TextEditingController(text: widget.maxWeight.toStringAsFixed(1));
+  }
+
+  @override
+  void didUpdateWidget(covariant _WeightRangeTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.minWeight != widget.minWeight) {
+      _minController.text = widget.minWeight.toStringAsFixed(1);
+    }
+    if (oldWidget.maxWeight != widget.maxWeight) {
+      _maxController.text = widget.maxWeight.toStringAsFixed(1);
+    }
+  }
+
+  @override
+  void dispose() {
+    _minController.dispose();
+    _maxController.dispose();
+    super.dispose();
+  }
+
+  void _validate() {
+    final double? minVal = double.tryParse(_minController.text.replaceAll(',', '.'));
+    final double? maxVal = double.tryParse(_maxController.text.replaceAll(',', '.'));
+
+    if (minVal == null || maxVal == null) {
+      setState(() => _errorMsg = 'Ingresa valores numéricos válidos.');
+      return;
+    }
+    if (minVal < 0) {
+      setState(() => _errorMsg = 'El mínimo no puede ser negativo.');
+      return;
+    }
+    if (maxVal <= minVal) {
+      setState(() => _errorMsg = 'El máximo debe ser mayor que el mínimo.');
+      return;
+    }
+    if (maxVal > 1000) {
+      setState(() => _errorMsg = 'El máximo no puede superar 1000.');
+      return;
+    }
+
+    setState(() => _errorMsg = null);
+    widget.onMinChanged(minVal);
+    widget.onMaxChanged(maxVal);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.midnightGrey,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.dividerColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Descripción
+          Text(
+            'Define el rango del selector de peso en la calculadora.',
+            style: GoogleFonts.spaceGrotesk(
+              fontSize: 12,
+              color: AppTheme.textSecondary,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Fila de inputs
+          Row(
+            children: [
+              // Mínimo
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'MÍNIMO',
+                      style: GoogleFonts.spaceGrotesk(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.voltYellow,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: _minController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.spaceGrotesk(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                      decoration: InputDecoration(
+                        suffixText: 'kg/lbs',
+                        suffixStyle: const TextStyle(color: Colors.white38, fontSize: 10),
+                        contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(color: AppTheme.dividerColor),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(color: AppTheme.voltYellow),
+                        ),
+                      ),
+                      onSubmitted: (_) => _validate(),
+                    ),
+                  ],
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 12),
+                child: Icon(Icons.arrow_forward, color: Colors.white24, size: 20),
+              ),
+              // Máximo
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'MÁXIMO',
+                      style: GoogleFonts.spaceGrotesk(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.electricCyan,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: _maxController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.spaceGrotesk(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                      decoration: InputDecoration(
+                        suffixText: 'kg/lbs',
+                        suffixStyle: const TextStyle(color: Colors.white38, fontSize: 10),
+                        contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(color: AppTheme.dividerColor),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(color: AppTheme.electricCyan),
+                        ),
+                      ),
+                      onSubmitted: (_) => _validate(),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+
+          // Botón Aplicar + error
+          if (_errorMsg != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                _errorMsg!,
+                style: const TextStyle(color: Colors.redAccent, fontSize: 12),
+              ),
+            ),
+
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _validate,
+              icon: const Icon(Icons.check_rounded, size: 16),
+              label: const Text('Aplicar rango'),
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                textStyle: GoogleFonts.spaceGrotesk(fontSize: 13, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
