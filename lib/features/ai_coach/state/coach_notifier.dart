@@ -13,6 +13,7 @@ import '../../calculator/state/calculator_notifier.dart';
 import '../../settings/state/settings_notifier.dart';
 import '../../history/state/history_notifier.dart';
 import '../../history/data/workout_record.dart';
+import 'package:system_info_plus/system_info_plus.dart';
 
 
 class ChatMessage {
@@ -55,6 +56,8 @@ class CoachState {
   final Map<String, List<ChatMessage>> conversations;
   final String activeExercise;
   final bool isUsingLocalAI;
+  final bool isDeviceCompatible;
+  final int deviceRamMb;
 
   CoachState({
     required this.isModelInstalled,
@@ -70,6 +73,8 @@ class CoachState {
     required this.conversations,
     required this.activeExercise,
     required this.isUsingLocalAI,
+    required this.isDeviceCompatible,
+    required this.deviceRamMb,
   });
 
   CoachState copyWith({
@@ -86,6 +91,8 @@ class CoachState {
     Map<String, List<ChatMessage>>? conversations,
     String? activeExercise,
     bool? isUsingLocalAI,
+    bool? isDeviceCompatible,
+    int? deviceRamMb,
   }) {
     return CoachState(
       isModelInstalled: isModelInstalled ?? this.isModelInstalled,
@@ -101,6 +108,8 @@ class CoachState {
       conversations: conversations ?? this.conversations,
       activeExercise: activeExercise ?? this.activeExercise,
       isUsingLocalAI: isUsingLocalAI ?? this.isUsingLocalAI,
+      isDeviceCompatible: isDeviceCompatible ?? this.isDeviceCompatible,
+      deviceRamMb: deviceRamMb ?? this.deviceRamMb,
     );
   }
 }
@@ -131,6 +140,8 @@ class CoachNotifier extends StateNotifier<CoachState> {
           conversations: {},
           activeExercise: 'General',
           isUsingLocalAI: false,
+          isDeviceCompatible: true,
+          deviceRamMb: 0,
         )) {
     _loadOnboardingAndModelStatus();
   }
@@ -138,6 +149,38 @@ class CoachNotifier extends StateNotifier<CoachState> {
   Future<void> _loadOnboardingAndModelStatus() async {
     final mySeq = ++_sessionSeq;
     try {
+      int deviceRamMb = 0;
+      bool isCompatible = true;
+      try {
+        if (Platform.isLinux) {
+          final file = File('/proc/meminfo');
+          if (await file.exists()) {
+            final lines = await file.readAsLines();
+            final memTotalLine = lines.firstWhere((l) => l.startsWith('MemTotal:'), orElse: () => '');
+            if (memTotalLine.isNotEmpty) {
+              final match = RegExp(r'\d+').firstMatch(memTotalLine);
+              if (match != null) {
+                final kb = int.parse(match.group(0)!);
+                deviceRamMb = kb ~/ 1024;
+                if (deviceRamMb < 3500) {
+                  isCompatible = false;
+                }
+              }
+            }
+          }
+        } else {
+          final ram = await SystemInfoPlus.physicalMemory;
+          if (ram != null) {
+            deviceRamMb = ram;
+            if (deviceRamMb < 3500) {
+              isCompatible = false;
+            }
+          }
+        }
+      } catch (e) {
+        print("[CoachNotifier] Advertencia al verificar la memoria RAM: $e");
+      }
+
       final prefs = await SharedPreferences.getInstance();
       if (mySeq != _sessionSeq) return;
 
@@ -216,11 +259,24 @@ class CoachNotifier extends StateNotifier<CoachState> {
         conversations: loadedConversations,
         activeExercise: 'General',
         messages: loadedConversations['General'] ?? [],
+        isDeviceCompatible: isCompatible,
+        deviceRamMb: deviceRamMb,
       );
 
       bool isInstalled = false;
       try {
-        isInstalled = await FlutterGemma.isModelInstalled(_modelFileName);
+        final appSupportDir = await getApplicationSupportDirectory();
+        final modelPath = '${appSupportDir.path}/flutter_gemma/$_modelFileName';
+        final fileExists = await File(modelPath).exists();
+        final isRegistered = await FlutterGemma.isModelInstalled(_modelFileName);
+        
+        if (isRegistered && !fileExists) {
+          print("[CoachNotifier] El modelo figura como registrado en DB pero no existe físicamente en: $modelPath. Desinstalando de la DB...");
+          await FlutterGemma.uninstallModel(_modelFileName);
+          isInstalled = false;
+        } else {
+          isInstalled = fileExists && isRegistered;
+        }
         if (mySeq != _sessionSeq) return;
       } catch (e) {
         isInstalled = false;
@@ -233,7 +289,7 @@ class CoachNotifier extends StateNotifier<CoachState> {
         } else {
           try {
             final model = await FlutterGemma.getActiveModel(
-              maxTokens: 2048,
+              maxTokens: 1024,
               preferredBackend: PreferredBackend.cpu,
             );
             if (mySeq != _sessionSeq) return;
@@ -301,7 +357,7 @@ class CoachNotifier extends StateNotifier<CoachState> {
       if (mySeq != _sessionSeq) return;
       try {
         final model = await FlutterGemma.getActiveModel(
-          maxTokens: 2048,
+          maxTokens: 1024,
           preferredBackend: PreferredBackend.cpu,
         );
         if (mySeq != _sessionSeq) return;
@@ -347,12 +403,14 @@ class CoachNotifier extends StateNotifier<CoachState> {
     final r1rm = calcState.calculated1RM;
 
     String coachInstruction = "";
+    const String extremeConciseness = " Habla de forma EXTREMADAMENTE breve, concisa y directa al grano para ahorrar tokens y procesamiento (máximo 2 oraciones o 40 palabras en total, sin saludos redundantes ni introducciones largas).";
+    
     if (state.selectedCoach == 'cristian') {
-      coachInstruction = "Eres Cristian, un motivador y enérgico entrenador de culturismo. Habla siempre en español, de forma muy concisa y directa (máximo 2 párrafos cortos). Enfatiza RPE 8-10, drop-sets, tiempo bajo tensión y nutrición hipercalórica.";
+      coachInstruction = "Eres Cristian, motivador entrenador de hipertrofia. Enfatiza RPE 8-10 y tempo lento.$extremeConciseness";
     } else if (state.selectedCoach == 'ana') {
-      coachInstruction = "Eres Ana, una empática entrenadora especialista en definición y nutrición. Habla siempre en español, de forma muy concisa y directa (máximo 2 párrafos cortos). Enfatiza déficit calórico y entrenamiento de alta intensidad.";
+      coachInstruction = "Eres Ana, coach de definición y nutrición. Enfatiza déficit inteligente y cardio metabólico.$extremeConciseness";
     } else {
-      coachInstruction = "Eres Igor, un entrenador soviético de powerlifting, muy serio, analítico y directo. Habla siempre en español, de forma muy concisa y directa (máximo 2 párrafos cortos). Enfatiza fuerza máxima y bajas repeticiones.";
+      coachInstruction = "Eres Igor, serio entrenador soviético de powerlifting. Enfatiza fuerza máxima y bajas repeticiones.$extremeConciseness";
     }
 
     String systemPrompt = coachInstruction;
@@ -522,32 +580,32 @@ class CoachNotifier extends StateNotifier<CoachState> {
     String welcomeText = "";
     if (state.activeExercise == 'General') {
       if (state.selectedCoach == 'cristian') {
-        welcomeText = "¡Qué pasa, crack! Soy Cristian, tu entrenador enfocado en Hipertrofia Muscular. He visto que tu 1RM estimado es de $r1rm $unit. ¡Un excelente punto de partida! Vamos a congestionar y meterle volumen a esas series para romper fibras hoy. ¿Prefieres que te diseñe una rutina para ganar masa o tienes dudas de técnica?";
+        welcomeText = "Hola, soy Cristian. ¿Te diseño una rutina de hipertrofia o resolvemos dudas de técnica hoy?";
       } else if (state.selectedCoach == 'ana') {
-        welcomeText = "¡Hola! Soy Ana, tu especialista en Definición Corporal y Nutrición. Con tu 1RM estimado de $r1rm $unit, podemos estructurar un entrenamiento metabólico increíble que queme grasa mientras conserva cada gramo de tu músculo. ¿Qué dudas tienes sobre tu dieta, suplementación o cardio para hoy?";
+        welcomeText = "Hola, soy Ana. ¿Qué dudas tienes hoy sobre tu nutrición, déficit o cardio?";
       } else {
-        welcomeText = "Saludos. Soy Igor, especialista en Fuerza Máxima y Potencia Explosiva. Tu marca estimada de $r1rm $unit es respetable, pero está lejos de tu límite real. Ganar fuerza requiere menos repeticiones, descansos largos y una progresión perfecta. ¿Listo para programar tu próxima marca personal?";
+        welcomeText = "Saludos, soy Igor. ¿Qué objetivos de fuerza o dudas de entrenamiento quieres consultar hoy?";
       }
     } else {
       // Diálogo de ejercicio específico con últimas marcas integradas
       final last3 = _getLast3Records(state.activeExercise);
       String recordsSummary = "";
       if (last3.isNotEmpty) {
-        recordsSummary = "\n\nHe revisado tus últimas marcas en ${state.activeExercise}:\n" +
+        recordsSummary = "\n\nÚltimas marcas en ${state.activeExercise}:\n" +
             last3.map((r) {
               final dateStr = "${r.date.day}/${r.date.month}/${r.date.year}";
-              return "• $dateStr: ${r.weight} ${r.unit} x ${r.reps} reps (1RM estimado: ${r.oneRepMax} ${r.unit})";
+              return "• $dateStr: ${r.weight} ${r.unit} x ${r.reps} reps (1RM: ${r.oneRepMax} ${r.unit})";
             }).join("\n");
       } else {
-        recordsSummary = "\n\nAún no tienes marcas registradas para ${state.activeExercise}. Registra tus levantamientos en la Calculadora para ver el progreso.";
+        recordsSummary = "\n\nAún no tienes marcas registradas para ${state.activeExercise}.";
       }
 
       if (state.selectedCoach == 'cristian') {
-        welcomeText = "¡Qué pasa, crack! Soy Cristian, tu coach de Hipertrofia. Analicemos tu rendimiento en **${state.activeExercise}**.$recordsSummary\n\n¿Quieres consejos sobre cómo aumentar el volumen de entrenamiento o mejorar tu técnica en este ejercicio?";
+        welcomeText = "Hola, soy Cristian. Analicemos tu rendimiento en **${state.activeExercise}**.$recordsSummary\n\n¿Quieres consejos de volumen o técnica para este ejercicio?";
       } else if (state.selectedCoach == 'ana') {
-        welcomeText = "¡Hola! Soy Ana, tu coach de Definición. Analicemos tu rendimiento en **${state.activeExercise}**.$recordsSummary\n\n¿Tienes dudas sobre cómo mantener esta fuerza durante tu periodo de definición o cómo estructurar tu entrenamiento?";
+        welcomeText = "Hola, soy Ana. Analicemos tu rendimiento en **${state.activeExercise}**.$recordsSummary\n\n¿Tienes dudas de entrenamiento o dieta para definición?";
       } else {
-        welcomeText = "Saludos. Soy Igor, tu coach de Fuerza Máxima. Analicemos tus marcas en **${state.activeExercise}**.$recordsSummary\n\nPara progresar y romper tu marca de 1RM de ${last3.isNotEmpty ? '${last3.first.oneRepMax} ${last3.first.unit}' : 'este ejercicio'}, debemos planificar tu progresión de cargas con precisión. ¿Empezamos a detallar tu rutina?";
+        welcomeText = "Saludos, soy Igor. Analicemos tus marcas en **${state.activeExercise}**.$recordsSummary\n\n¿Planificamos tu progresión de cargas?";
       }
     }
 
@@ -566,7 +624,7 @@ class CoachNotifier extends StateNotifier<CoachState> {
 
     try {
       final model = await FlutterGemma.getActiveModel(
-        maxTokens: 2048,
+        maxTokens: 1024,
         preferredBackend: PreferredBackend.cpu,
       );
       if (mySeq != _sessionSeq) return;
@@ -633,7 +691,7 @@ class CoachNotifier extends StateNotifier<CoachState> {
 
       // 3. Crear una nueva sesión con el prompt del sistema actualizado
       final model = await FlutterGemma.getActiveModel(
-        maxTokens: 2048,
+        maxTokens: 1024,
         preferredBackend: PreferredBackend.cpu,
       );
       final newSession = await model.openChat(

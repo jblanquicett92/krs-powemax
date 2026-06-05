@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:audioplayers/audioplayers.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/localization/app_localizations.dart';
 import '../state/settings_notifier.dart';
@@ -104,7 +107,81 @@ class SettingsScreen extends ConsumerWidget {
                 },
               ),
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 10),
+
+            // Selector de Tiempo de Descanso
+            _buildSettingTile(
+              context,
+              icon: Icons.timer_outlined,
+              title: "Descanso entre ejercicios",
+              trailing: DropdownButton<int>(
+                value: settings.restTimeBetweenExercises,
+                dropdownColor: AppTheme.midnightGrey,
+                style: GoogleFonts.spaceGrotesk(color: Colors.white, fontSize: 14),
+                underline: const SizedBox.shrink(),
+                items: const [
+                  DropdownMenuItem(value: 30, child: Text("30 s")),
+                  DropdownMenuItem(value: 60, child: Text("60 s")),
+                  DropdownMenuItem(value: 90, child: Text("90 s")),
+                  DropdownMenuItem(value: 120, child: Text("2 min")),
+                  DropdownMenuItem(value: 150, child: Text("2:30 min")),
+                  DropdownMenuItem(value: 180, child: Text("3 min")),
+                  DropdownMenuItem(value: 240, child: Text("4 min")),
+                  DropdownMenuItem(value: 300, child: Text("5 min")),
+                ],
+                onChanged: (val) {
+                  if (val != null) {
+                    settingsNotifier.setRestTime(val);
+                  }
+                },
+              ),
+            ),
+            const SizedBox(height: 10),
+
+            // Sonido de Pitido (Activar/Desactivar)
+            _buildSettingTile(
+              context,
+              icon: Icons.volume_up_outlined,
+              title: "Sonido del temporizador",
+              trailing: Switch(
+                value: settings.enableBeep,
+                activeColor: AppTheme.voltYellow,
+                onChanged: (val) {
+                  settingsNotifier.setEnableBeep(val);
+                },
+              ),
+            ),
+            const SizedBox(height: 10),
+
+            // Selector del tipo de pitido
+            if (settings.enableBeep) ...[
+              _buildSettingTile(
+                context,
+                icon: Icons.music_note_outlined,
+                title: "Tipo de pitido",
+                trailing: DropdownButton<int>(
+                  value: settings.selectedBeepSound,
+                  dropdownColor: AppTheme.midnightGrey,
+                  style: GoogleFonts.spaceGrotesk(color: Colors.white, fontSize: 14),
+                  underline: const SizedBox.shrink(),
+                  items: const [
+                    DropdownMenuItem(value: 1, child: Text("Sonido 1 (Bit Bit)")),
+                    DropdownMenuItem(value: 2, child: Text("Sonido 2 (Campana)")),
+                    DropdownMenuItem(value: 3, child: Text("Sonido 3 (Click)")),
+                  ],
+                  onChanged: (val) {
+                    if (val != null) {
+                      settingsNotifier.setSelectedBeepSound(val);
+                      _playPreviewSound(val);
+                    }
+                  },
+                ),
+              ),
+              const SizedBox(height: 10),
+            ],
+            const SizedBox(height: 22),
+
+
 
             // SECCIÓN 2: RANGO DEL SELECTOR DE PESO
             _buildSectionHeader(context, "Rango de Peso"),
@@ -485,4 +562,86 @@ class _WeightRangeTileState extends State<_WeightRangeTile> {
     );
   }
 }
+
+void _playPreviewSound(int soundId) async {
+  String url;
+  switch (soundId) {
+    case 2:
+      url = 'https://www.soundjay.com/buttons/sounds/button-3.mp3';
+      break;
+    case 3:
+      url = 'https://www.soundjay.com/buttons/sounds/button-10.mp3';
+      break;
+    case 1:
+    default:
+      url = 'https://www.soundjay.com/buttons/sounds/button-09.mp3';
+      break;
+  }
+
+  try {
+    final player = AudioPlayer();
+    player.setVolume(1.0).catchError((e) {
+      debugPrint("Preview player error: $e");
+      return null;
+    });
+    await player.play(UrlSource(url));
+    Future.delayed(const Duration(seconds: 2), () {
+      try {
+        player.dispose();
+      } catch (_) {}
+    });
+  } catch (_) {
+    _fallbackPreviewBeep(soundId);
+  }
+}
+
+void _fallbackPreviewBeep(int soundId) {
+  bool isWsl = false;
+  try {
+    final versionFile = File('/proc/version');
+    if (versionFile.existsSync()) {
+      final content = versionFile.readAsStringSync().toLowerCase();
+      if (content.contains('microsoft') || content.contains('wsl')) {
+        isWsl = true;
+      }
+    }
+  } catch (_) {}
+
+  if (isWsl) {
+    String psCommand;
+    switch (soundId) {
+      case 2:
+        // Sound 2: Melodia de campanas de 3 segundos (C5, E5, G5, C6, G5, C6)
+        psCommand = '[console]::beep(523, 300); [console]::beep(659, 300); [console]::beep(784, 300); [console]::beep(1046, 600); Start-Sleep -m 200; [console]::beep(784, 300); [console]::beep(1046, 800)';
+        break;
+      case 3:
+        // Sound 3: Clicks rítmicos de 3 segundos (8 clicks espaciados)
+        psCommand = r'for ($i=0; $i -lt 8; $i++) { [console]::beep(350, 100); Start-Sleep -m 250 }';
+        break;
+      case 1:
+      default:
+        // Sound 1: Bit Bit repetido durante 3 segundos
+        psCommand = r'for ($i=0; $i -lt 4; $i++) { [console]::beep(1000, 250); Start-Sleep -m 500 }';
+        break;
+    }
+    Process.run('powershell.exe', ['-c', psCommand]).catchError((e) {
+      debugPrint("WSL beep error: $e");
+      return ProcessResult(0, 0, null, null);
+    });
+  } else {
+    try {
+      // Pure Linux: use speaker-test to generate 3 seconds of sound
+      if (soundId == 2) {
+        Process.run('speaker-test', ['-t', 'sine', '-f', '800', '-l', '3']).catchError((_) => ProcessResult(0,0,null,null));
+      } else if (soundId == 3) {
+        Process.run('speaker-test', ['-t', 'sine', '-f', '400', '-l', '3']).catchError((_) => ProcessResult(0,0,null,null));
+      } else {
+        Process.run('speaker-test', ['-t', 'sine', '-f', '1000', '-l', '3']).catchError((_) => ProcessResult(0,0,null,null));
+      }
+    } catch (_) {}
+    SystemSound.play(SystemSoundType.alert);
+  }
+}
+
+
 

@@ -332,6 +332,47 @@ class _CoachChatScreenState extends ConsumerState<CoachChatScreen> {
     notifier.sendMessage(text);
   }
 
+  void _showForceDownloadWarning(BuildContext context, CoachNotifier notifier) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(
+            "¿Descargar de todos modos?",
+            style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+          ),
+          content: Text(
+            "Tu dispositivo cuenta con menos memoria RAM de la recomendada (4.0 GB). Esto podría causar lentitud extrema, que la app se cierre sola o que el teléfono se caliente. ¿Deseas continuar bajo tu propio riesgo?",
+            style: GoogleFonts.spaceGrotesk(fontSize: 14, height: 1.35),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(
+                "Cancelar",
+                style: GoogleFonts.spaceGrotesk(color: Colors.white54),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                notifier.downloadModel();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.redAccent,
+                foregroundColor: Colors.white,
+              ),
+              child: Text(
+                "Descargar",
+                style: GoogleFonts.spaceGrotesk(fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   // VISTA 2: Interfaz de Descarga Inicial (Presentación Premium del Equipo)
   Widget _buildDownloadInterface(BuildContext context, CoachState state, CoachNotifier notifier) {
     return Center(
@@ -385,64 +426,225 @@ class _CoachChatScreenState extends ConsumerState<CoachChatScreen> {
                 height: 1.45,
               ),
             ),
-            const SizedBox(height: 40),
+            const SizedBox(height: 32),
 
-            // SECCIÓN DE DESCARGA O PROGRESO
-            state.isDownloading
-                ? Column(
-                    children: [
-                      Text(
-                        "${context.tr('ai_downloading', ref)} ${state.downloadProgress}%",
-                        style: GoogleFonts.spaceGrotesk(
-                          color: AppTheme.voltYellow,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
-                        child: LinearProgressIndicator(
-                          value: state.downloadProgress / 100.0,
-                          minHeight: 12,
-                          backgroundColor: AppTheme.midnightGrey,
-                          valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.voltYellow),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        context.tr('ai_download_warning', ref),
-                        textAlign: TextAlign.center,
-                        style: GoogleFonts.spaceGrotesk(fontSize: 12, color: Colors.white30),
-                      ),
-                    ],
-                  )
-                : ElevatedButton.icon(
-                    onPressed: () {
-                      notifier.downloadModel();
-                    },
-                    icon: const Icon(Icons.download_for_offline, color: AppTheme.darkCarbon, size: 22),
-                    label: Text(
-                      context.tr('ai_download_btn', ref),
-                      style: GoogleFonts.spaceGrotesk(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.electricCyan,
-                      foregroundColor: AppTheme.darkCarbon,
-                      padding: const EdgeInsets.symmetric(vertical: 18),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
+            // Tarjeta de Requisitos del Sistema
+            Container(
+              padding: const EdgeInsets.all(16),
+              margin: const EdgeInsets.only(bottom: 24),
+              decoration: BoxDecoration(
+                color: AppTheme.midnightGrey.withOpacity(0.5),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppTheme.dividerColor),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Requisitos del Sistema:",
+                    style: GoogleFonts.outfit(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white70,
                     ),
                   ),
+                  const SizedBox(height: 12),
+                  // RAM Row
+                  Row(
+                    children: [
+                      Icon(
+                        state.isDeviceCompatible
+                            ? Icons.check_circle_outline
+                            : Icons.warning_amber_rounded,
+                        color: state.isDeviceCompatible
+                            ? AppTheme.electricCyan
+                            : Colors.redAccent,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          "Memoria RAM: Mínimo 4.0 GB (Tu dispositivo: ${state.deviceRamMb > 0 ? '${(state.deviceRamMb / 1024).toStringAsFixed(1)} GB' : 'Desconocido'})",
+                          style: GoogleFonts.spaceGrotesk(
+                            fontSize: 13,
+                            color: state.isDeviceCompatible
+                                ? Colors.white60
+                                : Colors.redAccent,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  // Storage Row
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.check_circle_outline,
+                        color: AppTheme.electricCyan,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          "Almacenamiento: ~1.6 GB de espacio libre",
+                          style: GoogleFonts.spaceGrotesk(
+                            fontSize: 13,
+                            color: Colors.white60,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  // Compatibilidad general
+                  Row(
+                    children: [
+                      Icon(
+                        state.isDeviceCompatible
+                            ? Icons.verified_user_outlined
+                            : Icons.gpp_maybe_outlined,
+                        color: state.isDeviceCompatible
+                            ? AppTheme.electricCyan
+                            : Colors.redAccent,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          "Compatibilidad: ${state.isDeviceCompatible ? 'Tu dispositivo es compatible' : 'Tu dispositivo no es recomendado'}",
+                          style: GoogleFonts.spaceGrotesk(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: state.isDeviceCompatible
+                                ? AppTheme.electricCyan
+                                : Colors.redAccent,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            // SECCIÓN DE DESCARGA O PROGRESO
+            !state.isDeviceCompatible
+                ? Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.redAccent.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
+                    ),
+                    child: Column(
+                      children: [
+                        const Icon(
+                          Icons.warning_amber_rounded,
+                          color: Colors.redAccent,
+                          size: 44,
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          "Dispositivo No Recomendado",
+                          style: GoogleFonts.outfit(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.redAccent,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          "Tu teléfono cuenta con ${state.deviceRamMb > 0 ? '${(state.deviceRamMb / 1024).toStringAsFixed(1)} GB' : 'poca'} de memoria RAM. Se requieren mínimo 4.0 GB de RAM para ejecutar la IA local sin comprometer el rendimiento del sistema.",
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.spaceGrotesk(
+                            fontSize: 13.5,
+                            color: Colors.white70,
+                            height: 1.4,
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                        ElevatedButton.icon(
+                          onPressed: () {
+                            _showForceDownloadWarning(context, notifier);
+                          },
+                          icon: const Icon(Icons.warning, color: Colors.white, size: 18),
+                          label: Text(
+                            "Descargar de todos modos",
+                            style: GoogleFonts.spaceGrotesk(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white10,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : (state.isDownloading
+                    ? Column(
+                        children: [
+                          Text(
+                            "${context.tr('ai_downloading', ref)} ${state.downloadProgress}%",
+                            style: GoogleFonts.spaceGrotesk(
+                              color: AppTheme.voltYellow,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: LinearProgressIndicator(
+                              value: state.downloadProgress / 100.0,
+                              minHeight: 12,
+                              backgroundColor: AppTheme.midnightGrey,
+                              valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.voltYellow),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            context.tr('ai_download_warning', ref),
+                            textAlign: TextAlign.center,
+                            style: GoogleFonts.spaceGrotesk(fontSize: 12, color: Colors.white30),
+                          ),
+                        ],
+                      )
+                    : ElevatedButton.icon(
+                        onPressed: () {
+                          notifier.downloadModel();
+                        },
+                        icon: const Icon(Icons.download_for_offline, color: AppTheme.darkCarbon, size: 22),
+                        label: Text(
+                          context.tr('ai_download_btn', ref),
+                          style: GoogleFonts.spaceGrotesk(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.electricCyan,
+                          foregroundColor: AppTheme.darkCarbon,
+                          padding: const EdgeInsets.symmetric(vertical: 18),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                      )),
           ],
         ),
       ),
     );
   }
+
+
 
   // VISTA 3: Cuestionario de Onboarding para autodetectar el coach ideal
   Widget _buildOnboardingInterface(BuildContext context, CoachState state, CoachNotifier notifier) {

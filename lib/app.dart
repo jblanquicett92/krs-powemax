@@ -8,6 +8,7 @@ import 'features/calculator/presentation/calculator_screen.dart';
 import 'features/history/presentation/history_screen.dart';
 import 'features/ai_coach/presentation/coach_chat_screen.dart';
 import 'features/settings/presentation/settings_screen.dart';
+import 'features/profile/presentation/profile_screen.dart';
 
 class MyApp extends ConsumerWidget {
   const MyApp({super.key});
@@ -53,7 +54,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     CalculatorScreen(),
     HistoryScreen(),
     CoachChatScreen(),
-    SettingsScreen(),
+    ProfileScreen(),
   ];
 
   @override
@@ -91,11 +92,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 destinations: [
                   NavigationDestination(
                     icon: Icon(
-                      Icons.calculate_outlined,
+                      Icons.fitness_center,
                       color: _currentIndex == 0 ? AppTheme.voltYellow : Colors.white60,
                     ),
-                    selectedIcon: const Icon(Icons.calculate, color: AppTheme.voltYellow),
-                    label: context.tr('nav_calculator', ref),
+                    selectedIcon: const Icon(Icons.fitness_center, color: AppTheme.voltYellow),
+                    label: '1RM',
                   ),
                   NavigationDestination(
                     icon: Icon(
@@ -107,19 +108,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                   NavigationDestination(
                     icon: Icon(
-                      Icons.smart_toy_outlined,
+                      Icons.psychology_outlined,
                       color: _currentIndex == 2 ? AppTheme.electricCyan : Colors.white60,
                     ),
-                    selectedIcon: const Icon(Icons.smart_toy, color: AppTheme.electricCyan),
+                    selectedIcon: const Icon(Icons.psychology, color: AppTheme.electricCyan),
                     label: context.tr('nav_ai_coach', ref),
                   ),
                   NavigationDestination(
                     icon: Icon(
-                      Icons.settings_outlined,
+                      Icons.person_outline,
                       color: _currentIndex == 3 ? AppTheme.voltYellow : Colors.white60,
                     ),
-                    selectedIcon: const Icon(Icons.settings, color: AppTheme.voltYellow),
-                    label: context.tr('nav_settings', ref),
+                    selectedIcon: const Icon(Icons.person, color: AppTheme.voltYellow),
+                    label: 'Perfil',
                   ),
                 ],
               ),

@@ -14,41 +14,7 @@ class HistoryNotifier extends StateNotifier<List<WorkoutRecord>> {
     final prefs = await SharedPreferences.getInstance();
     final String? jsonStr = prefs.getString(_keyRecords);
     if (jsonStr == null) {
-      // Iniciar con datos de ejemplo ficticios para que el prototipo no se vea vacío y la gráfica tenga aspecto premium
-      final mockRecords = [
-        WorkoutRecord(
-          id: '1',
-          exerciseName: 'Press de Banca',
-          weight: 70.0,
-          reps: 8,
-          oneRepMax: 88.6,
-          date: DateTime.now().subtract(const Duration(days: 20)),
-          unit: 'kg',
-          formula: 'epley',
-        ),
-        WorkoutRecord(
-          id: '2',
-          exerciseName: 'Press de Banca',
-          weight: 75.0,
-          reps: 6,
-          oneRepMax: 90.0,
-          date: DateTime.now().subtract(const Duration(days: 10)),
-          unit: 'kg',
-          formula: 'epley',
-        ),
-        WorkoutRecord(
-          id: '3',
-          exerciseName: 'Press de Banca',
-          weight: 80.0,
-          reps: 5,
-          oneRepMax: 93.3,
-          date: DateTime.now().subtract(const Duration(days: 2)),
-          unit: 'kg',
-          formula: 'epley',
-        ),
-      ];
-      state = mockRecords;
-      _saveToPrefs(mockRecords);
+      state = [];
       return;
     }
 

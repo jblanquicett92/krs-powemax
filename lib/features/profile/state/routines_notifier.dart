@@ -1,0 +1,196 @@
+import 'dart:convert';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../data/routine.dart';
+
+class RoutinesNotifier extends StateNotifier<List<Routine>> {
+  RoutinesNotifier() : super([]) {
+    _loadRoutines();
+  }
+
+  static const String _keyRoutines = 'user_workout_routines';
+
+  Future<void> _loadRoutines() async {
+    final prefs = await SharedPreferences.getInstance();
+    final String? jsonStr = prefs.getString(_keyRoutines);
+
+    if (jsonStr == null) {
+      // Si no hay rutinas guardadas, cargamos las de prueba/por defecto
+      final defaultRoutines = _getDefaultRoutines();
+      state = defaultRoutines;
+      await _saveToPrefs(defaultRoutines);
+      return;
+    }
+
+    try {
+      final List<dynamic> decoded = jsonDecode(jsonStr) as List<dynamic>;
+      List<Routine> routines = decoded
+          .map((item) => Routine.fromJson(item as Map<String, dynamic>))
+          .toList();
+
+      // MIGRACIÓN / RESET: Si las rutinas por defecto tienen datos viejos u obsoletos, las forzamos a los valores correctos
+      bool needsSave = false;
+      final defaultTemplates = _getDefaultRoutines();
+
+      routines = routines.map((r) {
+        if (r.id == 'default_push_pull') {
+          final hasAll16 = r.exercises.length == 16;
+          final hasEmpujeB = r.exercises.any((e) => e.dayGroup == 'Empuje B (Enfoque hipertrofia)');
+          final hasJalonB = r.exercises.any((e) => e.dayGroup == 'Jalón B (Enfoque grosor/detalle)');
+          if (!hasAll16 || !hasEmpujeB || !hasJalonB) {
+            needsSave = true;
+            return defaultTemplates.firstWhere((dr) => dr.id == 'default_push_pull');
+          }
+        }
+        if (r.id == 'default_arnold' && r.exercises.length < 9) {
+          needsSave = true;
+          return defaultTemplates.firstWhere((dr) => dr.id == 'default_arnold');
+        }
+        return r;
+      }).toList();
+
+      state = routines;
+      if (needsSave) {
+        await _saveToPrefs(routines);
+      }
+    } catch (e) {
+      state = _getDefaultRoutines();
+    }
+  }
+
+  List<Routine> _getDefaultRoutines() {
+    return [
+      Routine(
+        id: 'default_push_pull',
+        name: 'Rutina Empuje y Jalón',
+        exercises: [
+          // Empuje A (Enfoque fuerza)
+          RoutineExercise(name: 'Press de banca con barra', sets: 4, reps: 8, dayGroup: 'Empuje A (Enfoque fuerza)'),
+          RoutineExercise(name: 'Press militar (hombros)', sets: 3, reps: 10, dayGroup: 'Empuje A (Enfoque fuerza)'),
+          RoutineExercise(name: 'Fondos en paralelas (o máquina)', sets: 3, reps: 12, dayGroup: 'Empuje A (Enfoque fuerza)'),
+          RoutineExercise(name: 'Extensiones de tríceps en polea', sets: 3, reps: 15, dayGroup: 'Empuje A (Enfoque fuerza)'),
+          
+          // Empuje B (Enfoque hipertrofia)
+          RoutineExercise(name: 'Press inclinado con mancuernas', sets: 4, reps: 12, dayGroup: 'Empuje B (Enfoque hipertrofia)'),
+          RoutineExercise(name: 'Elevaciones laterales (hombros)', sets: 4, reps: 15, dayGroup: 'Empuje B (Enfoque hipertrofia)'),
+          RoutineExercise(name: 'Press máquina o aperturas con poleas', sets: 3, reps: 15, dayGroup: 'Empuje B (Enfoque hipertrofia)'),
+          RoutineExercise(name: 'Press francés (tríceps con barra Z)', sets: 3, reps: 12, dayGroup: 'Empuje B (Enfoque hipertrofia)'),
+          
+          // Jalón A (Enfoque fuerza/amplitud)
+          RoutineExercise(name: 'Dominadas (o jalón al pecho en polea)', sets: 4, reps: 10, dayGroup: 'Jalón A (Enfoque fuerza/amplitud)'),
+          RoutineExercise(name: 'Remo con barra (agarre supino o prono)', sets: 4, reps: 10, dayGroup: 'Jalón A (Enfoque fuerza/amplitud)'),
+          RoutineExercise(name: 'Face pulls (hombro posterior)', sets: 3, reps: 15, dayGroup: 'Jalón A (Enfoque fuerza/amplitud)'),
+          RoutineExercise(name: 'Curl de bíceps con barra', sets: 3, reps: 12, dayGroup: 'Jalón A (Enfoque fuerza/amplitud)'),
+          
+          // Jalón B (Enfoque grosor/detalle)
+          RoutineExercise(name: 'Remo en polea baja (agarre cerrado)', sets: 4, reps: 12, dayGroup: 'Jalón B (Enfoque grosor/detalle)'),
+          RoutineExercise(name: 'Jalón al pecho (agarre neutro)', sets: 3, reps: 12, dayGroup: 'Jalón B (Enfoque grosor/detalle)'),
+          RoutineExercise(name: 'Pájaros con mancuernas (hombro posterior)', sets: 3, reps: 15, dayGroup: 'Jalón B (Enfoque grosor/detalle)'),
+          RoutineExercise(name: 'Curl de bíceps martillo (con mancuernas)', sets: 3, reps: 12, dayGroup: 'Jalón B (Enfoque grosor/detalle)'),
+        ],
+        dateCreated: DateTime.now(),
+        isDefault: true,
+      ),
+      Routine(
+        id: 'default_arnold',
+        name: 'Rutina Arnold Split',
+        exercises: [
+          RoutineExercise(name: 'Press de Banca', sets: 4, reps: 10, dayGroup: 'Día A (Pecho/Espalda)'),
+          RoutineExercise(name: 'Aperturas Planas', sets: 3, reps: 12, dayGroup: 'Día A (Pecho/Espalda)'),
+          RoutineExercise(name: 'Dominadas', sets: 4, reps: 8, dayGroup: 'Día A (Pecho/Espalda)'),
+          RoutineExercise(name: 'Remo con Mancuerna', sets: 4, reps: 10, dayGroup: 'Día A (Pecho/Espalda)'),
+          RoutineExercise(name: 'Press Militar con Mancuernas', sets: 4, reps: 10, dayGroup: 'Día B (Hombros/Brazos)'),
+          RoutineExercise(name: 'Elevaciones Laterales', sets: 4, reps: 15, dayGroup: 'Día B (Hombros/Brazos)'),
+          RoutineExercise(name: 'Curl de Bíceps Inclinado', sets: 3, reps: 12, dayGroup: 'Día B (Hombros/Brazos)'),
+          RoutineExercise(name: 'Copa de Tríceps', sets: 3, reps: 12, dayGroup: 'Día B (Hombros/Brazos)'),
+          RoutineExercise(name: 'Sentadilla Hacka o Prensa', sets: 4, reps: 10, dayGroup: 'Día C (Piernas)'),
+        ],
+        dateCreated: DateTime.now(),
+        isDefault: true,
+      ),
+    ];
+  }
+
+  Future<void> _saveToPrefs(List<Routine> routines) async {
+    final prefs = await SharedPreferences.getInstance();
+    final jsonStr = jsonEncode(routines.map((r) => r.toJson()).toList());
+    await prefs.setString(_keyRoutines, jsonStr);
+  }
+
+  Future<void> addRoutine(String name, List<RoutineExercise> exercises) async {
+    final newRoutine = Routine(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      name: name.trim(),
+      exercises: exercises,
+      dateCreated: DateTime.now(),
+    );
+
+    final updated = [...state, newRoutine];
+    state = updated;
+    await _saveToPrefs(updated);
+  }
+
+  Future<void> deleteRoutine(String id) async {
+    final updated = state.where((r) => r.id != id).toList();
+    state = updated;
+    await _saveToPrefs(updated);
+  }
+
+  Future<void> addExerciseToRoutine(String routineId, String exerciseName, {int sets = 4, int reps = 10, String dayGroup = 'Día A'}) async {
+    final cleanName = exerciseName.trim();
+    if (cleanName.isEmpty) return;
+
+    state = state.map((routine) {
+      if (routine.id == routineId) {
+        final contains = routine.exercises.any((e) => e.name.toLowerCase() == cleanName.toLowerCase());
+        if (!contains) {
+          final updatedExercises = [
+            ...routine.exercises,
+            RoutineExercise(name: cleanName, sets: sets, reps: reps, dayGroup: dayGroup.trim().isEmpty ? 'Día A' : dayGroup.trim()),
+          ];
+          return routine.copyWith(exercises: updatedExercises);
+        }
+      }
+      return routine;
+    }).toList();
+
+    await _saveToPrefs(state);
+  }
+
+  Future<void> removeExerciseFromRoutine(String routineId, String exerciseName) async {
+    state = state.map((routine) {
+      if (routine.id == routineId) {
+        final updatedExercises = routine.exercises.where((e) => e.name != exerciseName).toList();
+        return routine.copyWith(exercises: updatedExercises);
+      }
+      return routine;
+    }).toList();
+
+    await _saveToPrefs(state);
+  }
+
+  Future<void> updateExerciseSetsReps(String routineId, String exerciseName, int sets, int reps, {String? dayGroup}) async {
+    state = state.map((routine) {
+      if (routine.id == routineId) {
+        final updatedExercises = routine.exercises.map((e) {
+          if (e.name == exerciseName) {
+            return e.copyWith(
+              sets: sets,
+              reps: reps,
+              dayGroup: dayGroup ?? e.dayGroup,
+            );
+          }
+          return e;
+        }).toList();
+        return routine.copyWith(exercises: updatedExercises);
+      }
+      return routine;
+    }).toList();
+
+    await _saveToPrefs(state);
+  }
+}
+
+final routinesProvider = StateNotifierProvider<RoutinesNotifier, List<Routine>>((ref) {
+  return RoutinesNotifier();
+});
