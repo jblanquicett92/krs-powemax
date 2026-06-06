@@ -6,6 +6,7 @@ import '../../../core/localization/app_localizations.dart';
 import '../state/coach_notifier.dart';
 import '../../settings/state/settings_notifier.dart';
 import '../../history/state/history_notifier.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 
 class CoachChatScreen extends ConsumerStatefulWidget {
   const CoachChatScreen({super.key});
@@ -320,14 +321,86 @@ class _CoachChatScreenState extends ConsumerState<CoachChatScreen> {
                 : coachColor.withOpacity(0.3), // Borde acoplado dinámicamente al color del coach
           ),
         ),
-        child: Text(
-          msg.text,
-          style: GoogleFonts.spaceGrotesk(
-            fontSize: 14.5,
-            height: 1.4,
-            color: msg.isUser ? AppTheme.voltYellow : const Color(0xffe8e8e8),
-          ),
-        ),
+        child: msg.isUser
+            ? Text(
+                msg.text,
+                style: GoogleFonts.spaceGrotesk(
+                  fontSize: 14.5,
+                  height: 1.4,
+                  color: AppTheme.voltYellow,
+                ),
+              )
+            : MarkdownBody(
+                data: msg.text,
+                styleSheet: MarkdownStyleSheet(
+                  p: GoogleFonts.spaceGrotesk(
+                    fontSize: 14.5,
+                    height: 1.5,
+                    color: const Color(0xffe8e8e8),
+                  ),
+                  strong: GoogleFonts.spaceGrotesk(
+                    fontSize: 14.5,
+                    height: 1.5,
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  em: GoogleFonts.spaceGrotesk(
+                    fontSize: 14.5,
+                    height: 1.5,
+                    color: const Color(0xffe8e8e8),
+                    fontStyle: FontStyle.italic,
+                  ),
+                  h1: GoogleFonts.outfit(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: coachColor,
+                  ),
+                  h2: GoogleFonts.outfit(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: coachColor,
+                  ),
+                  h3: GoogleFonts.outfit(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                  listBullet: GoogleFonts.spaceGrotesk(
+                    fontSize: 14.5,
+                    height: 1.5,
+                    color: const Color(0xffe8e8e8),
+                  ),
+                  blockquote: GoogleFonts.spaceGrotesk(
+                    fontSize: 14,
+                    height: 1.5,
+                    color: Colors.white60,
+                    fontStyle: FontStyle.italic,
+                  ),
+                  blockquoteDecoration: BoxDecoration(
+                    color: coachColor.withOpacity(0.05),
+                    border: Border(
+                      left: BorderSide(color: coachColor, width: 3),
+                    ),
+                  ),
+                  code: GoogleFonts.spaceGrotesk(
+                    fontSize: 13,
+                    color: coachColor,
+                    backgroundColor: Colors.transparent,
+                  ),
+                  codeblockDecoration: BoxDecoration(
+                    color: AppTheme.midnightGrey,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                        color: coachColor.withOpacity(0.3)),
+                  ),
+                  horizontalRuleDecoration: BoxDecoration(
+                    border: Border(
+                      top: BorderSide(
+                          color: AppTheme.dividerColor, width: 1),
+                    ),
+                  ),
+                ),
+              ),
       ),
     );
   }

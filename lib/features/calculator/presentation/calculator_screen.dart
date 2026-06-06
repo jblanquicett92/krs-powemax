@@ -16,11 +16,7 @@ import 'package:flutter/services.dart';
 final selectedRoutineIdProvider = StateProvider<String?>((ref) => null);
 final currentExerciseNameProvider = StateProvider<String?>((ref) => null);
 final selectedDayIndexProvider = StateProvider.autoDispose<int>((ref) => 0);
-final pageControllerProvider = Provider.autoDispose<PageController>((ref) {
-  final controller = PageController();
-  ref.onDispose(() => controller.dispose());
-  return controller;
-});
+
 
 class CalculatorScreen extends ConsumerWidget {
   const CalculatorScreen({super.key});
@@ -254,41 +250,17 @@ class CalculatorScreen extends ConsumerWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
-                            children: [
-                              Text(
-                                is1RM ? "1RM Estimado" : context.tr(zone.categoryKey, ref),
-                                style: GoogleFonts.spaceGrotesk(
-                                  fontSize: is1RM ? 15 : 14,
-                                  fontWeight: FontWeight.bold,
-                                  color: isTargetZone
-                                      ? AppTheme.electricCyan
-                                      : (is1RM ? AppTheme.voltYellow : Colors.white),
-                                ),
-                              ),
-                              if (isTargetZone) ...[
-                                const SizedBox(width: 8),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: AppTheme.electricCyan.withOpacity(0.15),
-                                    borderRadius: BorderRadius.circular(6),
-                                    border: Border.all(
-                                      color: AppTheme.electricCyan,
-                                      width: 1,
-                                    ),
-                                  ),
-                                  child: Text(
-                                    "${calcState.reps} REPS",
-                                    style: GoogleFonts.spaceGrotesk(
-                                      fontSize: 9,
-                                      fontWeight: FontWeight.bold,
-                                      color: AppTheme.electricCyan,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ],
+                          Text(
+                            is1RM ? "1RM Estimado" : context.tr(zone.categoryKey, ref),
+                            style: GoogleFonts.spaceGrotesk(
+                              fontSize: is1RM ? 15 : 14,
+                              fontWeight: FontWeight.bold,
+                              color: isTargetZone
+                                  ? AppTheme.electricCyan
+                                  : (is1RM ? AppTheme.voltYellow : Colors.white),
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                           Text(
                             is1RM ? "100% de tu fuerza máxima estimada" : _getZoneDescription(zone.percentage),
@@ -542,7 +514,7 @@ class CalculatorScreen extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              "RUTINA ACTIVA DEL DÍA",
+              "RUTINA",
               style: GoogleFonts.spaceGrotesk(
                 fontSize: 12,
                 fontWeight: FontWeight.bold,
@@ -577,7 +549,7 @@ class CalculatorScreen extends ConsumerWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  "RUTINA ACTIVA DEL DÍA",
+                  "RUTINA",
                   style: GoogleFonts.spaceGrotesk(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
@@ -611,7 +583,6 @@ class CalculatorScreen extends ConsumerWidget {
     }
     final sortedDays = grouped.keys.toList()..sort();
     final activeIndex = ref.watch(selectedDayIndexProvider);
-    final pageController = ref.watch(pageControllerProvider);
     final safeIndex = activeIndex >= sortedDays.length ? 0 : activeIndex;
 
     return Container(
@@ -628,7 +599,7 @@ class CalculatorScreen extends ConsumerWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                "RUTINA ACTIVA DEL DÍA",
+                "RUTINA",
                 style: GoogleFonts.spaceGrotesk(
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
@@ -648,46 +619,159 @@ class CalculatorScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
 
-          // Sliding Days Selector (Horizontal scrolling chips)
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: List.generate(sortedDays.length, (idx) {
-                final dayName = sortedDays[idx];
-                final isSelected = safeIndex == idx;
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8.0),
-                  child: ChoiceChip(
-                    label: Text(dayName),
-                    selected: isSelected,
-                    onSelected: (selected) {
-                      if (selected) {
-                        ref.read(selectedDayIndexProvider.notifier).state = idx;
-                        pageController.animateToPage(
-                          idx,
-                          duration: const Duration(milliseconds: 300),
-                          curve: Curves.easeInOut,
+          // Day Selector — collapsed pill with bottom sheet
+          Builder(
+            builder: (context) {
+              final currentDayName = sortedDays[safeIndex];
+              final isLocked = activeExercise != null;
+
+              return GestureDetector(
+                onTap: isLocked || sortedDays.length <= 1
+                    ? null
+                    : () {
+                        showModalBottomSheet(
+                          context: context,
+                          backgroundColor: Colors.transparent,
+                          builder: (ctx) {
+                            return Container(
+                              decoration: const BoxDecoration(
+                                color: AppTheme.midnightGrey,
+                                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                              ),
+                              padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Handle bar
+                                  Center(
+                                    child: Container(
+                                      width: 40,
+                                      height: 4,
+                                      decoration: BoxDecoration(
+                                        color: Colors.white24,
+                                        borderRadius: BorderRadius.circular(2),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 20),
+                                  Text(
+                                    'SELECCIONAR DÍA',
+                                    style: GoogleFonts.spaceGrotesk(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppTheme.voltYellow,
+                                      letterSpacing: 1.5,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  ...List.generate(sortedDays.length, (idx) {
+                                    final dayName = sortedDays[idx];
+                                    final isActive = safeIndex == idx;
+                                    return InkWell(
+                                      onTap: () {
+                                        ref.read(selectedDayIndexProvider.notifier).state = idx;
+                                        Navigator.pop(ctx);
+                                      },
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: AnimatedContainer(
+                                        duration: const Duration(milliseconds: 200),
+                                        margin: const EdgeInsets.only(bottom: 8),
+                                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                        decoration: BoxDecoration(
+                                          color: isActive
+                                              ? AppTheme.voltYellow.withOpacity(0.1)
+                                              : AppTheme.darkCarbon,
+                                          borderRadius: BorderRadius.circular(12),
+                                          border: Border.all(
+                                            color: isActive ? AppTheme.voltYellow : AppTheme.dividerColor,
+                                            width: isActive ? 1.5 : 1,
+                                          ),
+                                        ),
+                                        child: Row(
+                                          children: [
+                                            Icon(
+                                              isActive
+                                                  ? Icons.radio_button_checked
+                                                  : Icons.radio_button_off,
+                                              size: 18,
+                                              color: isActive ? AppTheme.voltYellow : Colors.white38,
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                              child: Text(
+                                                dayName,
+                                                style: GoogleFonts.spaceGrotesk(
+                                                  fontSize: 14,
+                                                  fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                                                  color: isActive ? AppTheme.voltYellow : Colors.white70,
+                                                ),
+                                              ),
+                                            ),
+                                            if (isActive)
+                                              const Icon(Icons.check, size: 16, color: AppTheme.voltYellow),
+                                          ],
+                                        ),
+                                      ),
+                                    );
+                                  }),
+                                ],
+                              ),
+                            );
+                          },
                         );
-                      }
-                    },
-                    selectedColor: AppTheme.voltYellow,
-                    backgroundColor: AppTheme.darkCarbon,
-                    labelStyle: TextStyle(
-                      color: isSelected ? AppTheme.darkCarbon : Colors.white70,
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                      fontSize: 11,
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      side: BorderSide(color: isSelected ? AppTheme.voltYellow : AppTheme.dividerColor),
+                      },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: isLocked
+                        ? AppTheme.darkCarbon.withOpacity(0.6)
+                        : AppTheme.voltYellow.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isLocked
+                          ? AppTheme.dividerColor
+                          : AppTheme.voltYellow.withOpacity(0.4),
+                      width: 1,
                     ),
                   ),
-                );
-              }),
-            ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        isLocked ? Icons.lock_outline : Icons.calendar_today_outlined,
+                        size: 14,
+                        color: isLocked ? Colors.white38 : AppTheme.voltYellow,
+                      ),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          currentDayName,
+                          style: GoogleFonts.spaceGrotesk(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: isLocked ? Colors.white38 : Colors.white,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (!isLocked && sortedDays.length > 1) ...[ 
+                        const SizedBox(width: 6),
+                        Icon(
+                          Icons.keyboard_arrow_down_rounded,
+                          size: 18,
+                          color: AppTheme.voltYellow.withOpacity(0.8),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              );
+            },
           ),
           const SizedBox(height: 16),
+
 
           // Session status summary (Active or Completed)
           if (todayRecords.isNotEmpty) ...[
@@ -777,217 +861,221 @@ class CalculatorScreen extends ConsumerWidget {
             ),
           ],
 
-          // Slide View of Exercises
+          // Exercise list for selected day (inline, no fixed height)
           Builder(
             builder: (context) {
-              int maxExercises = 0;
-              for (var dayGroup in grouped.values) {
-                if (dayGroup.length > maxExercises) {
-                  maxExercises = dayGroup.length;
-                }
-              }
-              final double pageViewHeight = (maxExercises * 82.0) + 16.0;
+              final day = sortedDays[safeIndex];
+              final exercises = grouped[day]!;
 
-              return SizedBox(
-                height: pageViewHeight,
-                child: PageView.builder(
-                  controller: pageController,
-                  onPageChanged: (idx) {
-                    ref.read(selectedDayIndexProvider.notifier).state = idx;
-                  },
-                  itemCount: sortedDays.length,
-                  itemBuilder: (context, pageIdx) {
-                    final day = sortedDays[pageIdx];
-                    final exercises = grouped[day]!;
-                    return ListView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: exercises.length,
-                  itemBuilder: (context, exIdx) {
-                    final exercise = exercises[exIdx];
-                    final isSelected = activeExercise == exercise.name;
-                    
-                    final matches = history.where((r) =>
-                        r.exerciseName.trim().toLowerCase() ==
-                        exercise.name.trim().toLowerCase());
-                    final latestRecord = matches.isEmpty ? null : matches.first;
+              return ReorderableListView.builder(
+                buildDefaultDragHandles: false,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: exercises.length,
+                onReorder: (oldIndex, newIndex) {
+                  ref.read(routinesProvider.notifier).reorderExercise(
+                    selectedRoutine.id,
+                    day,
+                    oldIndex,
+                    newIndex,
+                  );
+                },
+                itemBuilder: (context, exIdx) {
+                  final exercise = exercises[exIdx];
+                  final isSelected = activeExercise == exercise.name;
 
-                    final today = DateTime.now();
-                    final todayRecords = history.where((r) =>
-                        r.exerciseName.trim().toLowerCase() == exercise.name.trim().toLowerCase() &&
-                        r.date.year == today.year &&
-                        r.date.month == today.month &&
-                        r.date.day == today.day
-                    ).toList().reversed.toList();
+                  final matches = history.where((r) =>
+                      r.exerciseName.trim().toLowerCase() ==
+                      exercise.name.trim().toLowerCase());
+                  final latestRecord = matches.isEmpty ? null : matches.first;
 
-                    final isCompleted = todayRecords.length >= exercise.sets;
+                  final today = DateTime.now();
+                  final todayExRecords = history.where((r) =>
+                      r.exerciseName.trim().toLowerCase() == exercise.name.trim().toLowerCase() &&
+                      r.date.year == today.year &&
+                      r.date.month == today.month &&
+                      r.date.day == today.day
+                  ).toList().reversed.toList();
 
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
+                  final isCompleted = todayExRecords.length >= exercise.sets;
+
+                  return Container(
+                    key: ValueKey('calc_ex_${exercise.name}_$exIdx'),
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? AppTheme.voltYellow.withOpacity(0.06)
+                          : isCompleted
+                              ? Colors.green.withOpacity(0.04)
+                              : AppTheme.darkCarbon,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
                         color: isSelected
-                            ? AppTheme.voltYellow.withOpacity(0.06)
+                            ? AppTheme.voltYellow
                             : isCompleted
-                                ? Colors.green.withOpacity(0.04)
-                                : AppTheme.darkCarbon,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: isSelected
-                              ? AppTheme.voltYellow
-                              : isCompleted
-                                  ? Colors.green.withOpacity(0.3)
-                                  : AppTheme.dividerColor,
-                          width: isSelected ? 1 : 0.5,
-                        ),
+                                ? Colors.green.withOpacity(0.3)
+                                : AppTheme.dividerColor,
+                        width: isSelected ? 1 : 0.5,
                       ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        exercise.name,
-                                        style: GoogleFonts.spaceGrotesk(
-                                          fontWeight: FontWeight.bold,
-                                          color: isCompleted ? Colors.white38 : Colors.white,
-                                          fontSize: 13,
-                                          decoration: isCompleted ? TextDecoration.lineThrough : null,
-                                        ),
+                    ),
+                    child: Row(
+                      children: [
+                        // Drag handle
+                        ReorderableDragStartListener(
+                          index: exIdx,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 4.0),
+                            child: Icon(
+                              Icons.drag_indicator,
+                              size: 18,
+                              color: Colors.white24,
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      exercise.name,
+                                      style: GoogleFonts.spaceGrotesk(
+                                        fontWeight: FontWeight.bold,
+                                        color: isCompleted ? Colors.white38 : Colors.white,
+                                        fontSize: 13,
+                                        decoration: isCompleted ? TextDecoration.lineThrough : null,
                                       ),
                                     ),
-                                    const SizedBox(width: 8),
-                                    Container(
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: isCompleted
+                                          ? Colors.green.withOpacity(0.1)
+                                          : AppTheme.voltYellow.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      "${exercise.sets}x${exercise.reps}",
+                                      style: GoogleFonts.spaceGrotesk(
+                                        color: isCompleted ? Colors.green : AppTheme.voltYellow,
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                latestRecord != null
+                                    ? "1RM Actual: ${latestRecord.oneRepMax.toStringAsFixed(1)} ${latestRecord.unit}"
+                                    : "Sin 1RM registrado",
+                                style: GoogleFonts.spaceGrotesk(
+                                  color: isCompleted
+                                      ? Colors.green.withOpacity(0.7)
+                                      : latestRecord != null
+                                          ? AppTheme.voltYellow
+                                          : Colors.white38,
+                                  fontSize: 11,
+                                ),
+                              ),
+                              if (todayExRecords.isNotEmpty) ...[
+                                const SizedBox(height: 6),
+                                Wrap(
+                                  spacing: 4,
+                                  runSpacing: 4,
+                                  children: List.generate(todayExRecords.length, (idx) {
+                                    final r = todayExRecords[idx];
+                                    return Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                       decoration: BoxDecoration(
                                         color: isCompleted
                                             ? Colors.green.withOpacity(0.1)
-                                            : AppTheme.voltYellow.withOpacity(0.1),
+                                            : AppTheme.voltYellow.withOpacity(0.12),
                                         borderRadius: BorderRadius.circular(4),
+                                        border: Border.all(
+                                            color: isCompleted
+                                                ? Colors.green.withOpacity(0.3)
+                                                : AppTheme.voltYellow.withOpacity(0.3),
+                                            width: 0.5),
                                       ),
                                       child: Text(
-                                        "${exercise.sets}x${exercise.reps}",
+                                        "${r.weight.toStringAsFixed(0)}x${r.reps} (1RM: ${r.oneRepMax.toStringAsFixed(0)}${r.unit})",
                                         style: GoogleFonts.spaceGrotesk(
                                           color: isCompleted ? Colors.green : AppTheme.voltYellow,
                                           fontSize: 9,
                                           fontWeight: FontWeight.bold,
                                         ),
                                       ),
-                                    ),
-                                  ],
+                                    );
+                                  }),
                                 ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  latestRecord != null
-                                      ? "1RM Actual: ${latestRecord.oneRepMax.toStringAsFixed(1)} ${latestRecord.unit}"
-                                      : "Sin 1RM registrado",
-                                  style: GoogleFonts.spaceGrotesk(
-                                    color: isCompleted
-                                        ? Colors.green.withOpacity(0.7)
-                                        : latestRecord != null
-                                            ? AppTheme.voltYellow
-                                            : Colors.white38,
-                                    fontSize: 11,
-                                  ),
-                                ),
-                                if (todayRecords.isNotEmpty) ...[
-                                  const SizedBox(height: 6),
-                                  Wrap(
-                                    spacing: 4,
-                                    runSpacing: 4,
-                                    children: List.generate(todayRecords.length, (idx) {
-                                      final r = todayRecords[idx];
-                                      return Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color: isCompleted
-                                              ? Colors.green.withOpacity(0.1)
-                                              : AppTheme.voltYellow.withOpacity(0.12),
-                                          borderRadius: BorderRadius.circular(4),
-                                          border: Border.all(
-                                              color: isCompleted
-                                                  ? Colors.green.withOpacity(0.3)
-                                                  : AppTheme.voltYellow.withOpacity(0.3),
-                                              width: 0.5),
-                                        ),
-                                        child: Text(
-                                          "S${idx + 1}: ${r.weight.toStringAsFixed(0)}x${r.reps} (1RM: ${r.oneRepMax.toStringAsFixed(0)}${r.unit})",
-                                          style: GoogleFonts.spaceGrotesk(
-                                            color: isCompleted ? Colors.green : AppTheme.voltYellow,
-                                            fontSize: 9,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      );
-                                    }),
-                                  ),
-                                ],
                               ],
-                            ),
+                            ],
                           ),
-                          const SizedBox(width: 8),
-                          IconButton(
-                            icon: Icon(
-                              isCompleted
-                                  ? Icons.check_circle_outline
-                                  : isSelected
-                                      ? Icons.check_circle
-                                      : Icons.play_arrow,
-                              color: isCompleted
-                                  ? Colors.green
-                                  : isSelected
-                                      ? AppTheme.voltYellow
-                                      : Colors.white60,
-                              size: 20,
-                            ),
-                            onPressed: isCompleted
-                                ? null
-                                : () {
-                                    ref.read(currentExerciseNameProvider.notifier).state = exercise.name;
-                                    final historyList = ref.read(historyProvider);
-                                    final exRecords = historyList.where((r) =>
-                                        r.exerciseName.trim().toLowerCase() == exercise.name.trim().toLowerCase());
-                                    if (exRecords.isNotEmpty) {
-                                      final lastRecord = exRecords.first;
-                                      calcNotifier.updateWeight(lastRecord.weight);
-                                      calcNotifier.updateReps(lastRecord.reps);
-                                    } else {
-                                      calcNotifier.updateReps(exercise.reps);
-                                    }
-                                  },
+                        ),
+                        const SizedBox(width: 4),
+                        IconButton(
+                          icon: Icon(
+                            isCompleted
+                                ? Icons.check_circle_outline
+                                : isSelected
+                                    ? Icons.check_circle
+                                    : Icons.play_arrow,
+                            color: isCompleted
+                                ? Colors.green
+                                : isSelected
+                                    ? AppTheme.voltYellow
+                                    : Colors.white60,
+                            size: 20,
                           ),
-                        ],
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
-          );
-        },
-      ),
+                          onPressed: isCompleted
+                              ? null
+                              : () {
+                                  ref.read(currentExerciseNameProvider.notifier).state = exercise.name;
+                                  final historyList = ref.read(historyProvider);
+                                  final exRecords = historyList.where((r) =>
+                                      r.exerciseName.trim().toLowerCase() == exercise.name.trim().toLowerCase());
+                                  if (exRecords.isNotEmpty) {
+                                    final lastRecord = exRecords.first;
+                                    calcNotifier.updateWeight(lastRecord.weight);
+                                    calcNotifier.updateReps(lastRecord.reps);
+                                  } else {
+                                    calcNotifier.updateReps(exercise.reps);
+                                  }
+                                },
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              );
+            },
+          ),
           const SizedBox(height: 8),
 
-          // Slide indicator dots
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(sortedDays.length, (idx) {
-              return AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                margin: const EdgeInsets.symmetric(horizontal: 4),
-                height: 6,
-                width: safeIndex == idx ? 16 : 6,
-                decoration: BoxDecoration(
-                  color: safeIndex == idx ? AppTheme.voltYellow : Colors.white24,
-                  borderRadius: BorderRadius.circular(3),
-                ),
-              );
-            }),
-          ),
+          // Day indicator dots
+          if (sortedDays.length > 1)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(sortedDays.length, (idx) {
+                return AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  height: 6,
+                  width: safeIndex == idx ? 16 : 6,
+                  decoration: BoxDecoration(
+                    color: safeIndex == idx ? AppTheme.voltYellow : Colors.white24,
+                    borderRadius: BorderRadius.circular(3),
+                  ),
+                );
+              }),
+            ),
         ],
       ),
     );

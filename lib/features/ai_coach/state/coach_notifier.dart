@@ -332,6 +332,8 @@ class CoachNotifier extends StateNotifier<CoachState> {
       systemPrompt += " 1RM general del usuario: $r1rm $unit (basado en ${calcState.weight} ${unit} x ${calcState.reps} reps).";
     }
 
+    systemPrompt += " REGLAS DE FORMATO: No uses emojis en ninguna respuesta. Usa formato Markdown (negrita, listas, encabezados) para estructurar el texto cuando sea útil, pero nunca emojis.";
+
     return systemPrompt;
   }
 

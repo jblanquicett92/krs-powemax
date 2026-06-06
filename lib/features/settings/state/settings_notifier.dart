@@ -22,6 +22,7 @@ class SettingsState {
   final String geminiApiKey;
   final String onlineProvider; // 'gemini' or 'huggingface'
   final String huggingFaceToken;
+  final bool profileSetupDone;
 
   SettingsState({
     required this.language,
@@ -42,6 +43,7 @@ class SettingsState {
     required this.geminiApiKey,
     required this.onlineProvider,
     required this.huggingFaceToken,
+    required this.profileSetupDone,
   });
 
   SettingsState copyWith({
@@ -63,6 +65,7 @@ class SettingsState {
     String? geminiApiKey,
     String? onlineProvider,
     String? huggingFaceToken,
+    bool? profileSetupDone,
   }) {
     return SettingsState(
       language: language ?? this.language,
@@ -83,6 +86,7 @@ class SettingsState {
       geminiApiKey: geminiApiKey ?? this.geminiApiKey,
       onlineProvider: onlineProvider ?? this.onlineProvider,
       huggingFaceToken: huggingFaceToken ?? this.huggingFaceToken,
+      profileSetupDone: profileSetupDone ?? this.profileSetupDone,
     );
   }
 }
@@ -107,6 +111,7 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
           geminiApiKey: _defaultApiKey,
           onlineProvider: 'gemini', // Default to gemini (Google key)
           huggingFaceToken: '',
+          profileSetupDone: false,
         )) {
     _loadSettings();
   }
@@ -129,6 +134,7 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
   static const String _keyGeminiApiKey = 'settings_gemini_api_key_obf';
   static const String _keyOnlineProvider = 'settings_online_provider';
   static const String _keyHuggingFaceToken = 'settings_huggingface_token_obf';
+  static const String _keyProfileSetupDone = 'settings_profile_setup_done';
 
   static String get _defaultApiKey {
     const envKey = String.fromEnvironment('GEMINI_API_KEY');
@@ -199,6 +205,7 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
     final String onlineProv = prefs.getString(_keyOnlineProvider) ?? 'gemini';
     final String hfTokenObf = prefs.getString(_keyHuggingFaceToken) ?? '';
     final String hfToken = hfTokenObf.isNotEmpty ? _deobfuscateXor(hfTokenObf) : '';
+    final bool profileDone = prefs.getBool(_keyProfileSetupDone) ?? false;
     
     state = SettingsState(
       language: lang,
@@ -219,6 +226,7 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
       geminiApiKey: geminiApiKey,
       onlineProvider: onlineProv,
       huggingFaceToken: hfToken,
+      profileSetupDone: profileDone,
     );
   }
 
@@ -341,6 +349,12 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
       await prefs.setString(_keyHuggingFaceToken, _obfuscateXor(cleanToken));
       state = state.copyWith(huggingFaceToken: cleanToken);
     }
+  }
+
+  Future<void> setProfileSetupDone(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyProfileSetupDone, value);
+    state = state.copyWith(profileSetupDone: value);
   }
 }
 

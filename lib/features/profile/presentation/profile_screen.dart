@@ -6,6 +6,7 @@ import '../../../core/localization/app_localizations.dart';
 import '../../settings/state/settings_notifier.dart';
 import '../../settings/presentation/settings_screen.dart';
 import 'routines_screen.dart';
+import 'profile_onboarding_screen.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -39,6 +40,50 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
     _goalController = TextEditingController(
       text: settings.userGoal,
+    );
+  }
+
+  bool _onboardingShown = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_onboardingShown) {
+      _onboardingShown = true;
+      final settings = ref.read(settingsProvider);
+      // Only auto-launch if the user has never completed or skipped setup
+      if (!settings.profileSetupDone) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          // Wait for settings to load from SharedPreferences before deciding
+          Future.delayed(const Duration(milliseconds: 300), () {
+            if (!mounted) return;
+            final s = ref.read(settingsProvider);
+            if (!s.profileSetupDone) {
+              _openOnboarding();
+            }
+          });
+        });
+      }
+    }
+  }
+
+  void _openOnboarding() {
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        pageBuilder: (_, animation, __) =>
+            const ProfileOnboardingScreen(),
+        transitionsBuilder: (_, animation, __, child) {
+          return SlideTransition(
+            position: Tween<Offset>(
+              begin: const Offset(0, 1),
+              end: Offset.zero,
+            ).animate(
+                CurvedAnimation(parent: animation, curve: Curves.easeOutCubic)),
+            child: child,
+          );
+        },
+        transitionDuration: const Duration(milliseconds: 400),
+      ),
     );
   }
 
@@ -168,44 +213,79 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           children: [
             // TARJETA DE RESUMEN IMC / ESTADO
             if (isUnconfigured)
-              Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: AppTheme.midnightGrey,
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: AppTheme.voltYellow.withOpacity(0.3)),
-                ),
-                child: Column(
-                  children: [
-                    CircleAvatar(
-                      radius: 36,
-                      backgroundColor: AppTheme.voltYellow.withOpacity(0.12),
-                      child: const Icon(
-                        Icons.person_outline,
-                        size: 40,
-                        color: AppTheme.voltYellow,
+              GestureDetector(
+                onTap: _openOnboarding,
+                child: Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: AppTheme.midnightGrey,
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(
+                        color: AppTheme.voltYellow.withOpacity(0.4),
+                        width: 1.5),
+                  ),
+                  child: Column(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: AppTheme.voltYellow.withOpacity(0.08),
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                              color: AppTheme.voltYellow.withOpacity(0.3)),
+                        ),
+                        child: const Icon(
+                          Icons.person_add_outlined,
+                          size: 40,
+                          color: AppTheme.voltYellow,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      "Aún no has personalizado tu perfil",
-                      style: GoogleFonts.outfit(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
+                      const SizedBox(height: 16),
+                      Text(
+                        '¡Configura tu perfil!',
+                        style: GoogleFonts.outfit(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                        textAlign: TextAlign.center,
                       ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      "Completa tus datos abajo para calcular tu índice de masa corporal y personalizar tu experiencia.",
-                      style: GoogleFonts.spaceGrotesk(
-                        fontSize: 13,
-                        color: Colors.white60,
+                      const SizedBox(height: 8),
+                      Text(
+                        'Toca aquí para completar tu perfil en menos de un minuto.',
+                        style: GoogleFonts.spaceGrotesk(
+                          fontSize: 13,
+                          color: Colors.white60,
+                        ),
+                        textAlign: TextAlign.center,
                       ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: AppTheme.voltYellow,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Empezar',
+                              style: GoogleFonts.outfit(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: AppTheme.darkCarbon,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            const Icon(Icons.arrow_forward_rounded,
+                                size: 18, color: AppTheme.darkCarbon),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               )
             else
@@ -218,15 +298,37 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 ),
                 child: Column(
                   children: [
-                    // Avatar de usuario
-                    CircleAvatar(
-                      radius: 36,
-                      backgroundColor: bmiCat.color.withOpacity(0.12),
-                      child: Icon(
-                        Icons.person,
-                        size: 40,
-                        color: bmiCat.color,
-                      ),
+                    // Avatar + edit button
+                    Stack(
+                      children: [
+                        CircleAvatar(
+                          radius: 36,
+                          backgroundColor: bmiCat.color.withOpacity(0.12),
+                          child: Icon(
+                            Icons.person,
+                            size: 40,
+                            color: bmiCat.color,
+                          ),
+                        ),
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: GestureDetector(
+                            onTap: _openOnboarding,
+                            child: Container(
+                              padding: const EdgeInsets.all(5),
+                              decoration: BoxDecoration(
+                                color: AppTheme.voltYellow,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                    color: AppTheme.darkCarbon, width: 2),
+                              ),
+                              child: const Icon(Icons.edit_rounded,
+                                  size: 13, color: AppTheme.darkCarbon),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 12),
                     Text(
