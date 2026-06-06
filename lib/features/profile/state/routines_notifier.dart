@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../data/routine.dart';
+import '../../history/data/workout_record.dart';
 
 class RoutinesNotifier extends StateNotifier<List<Routine>> {
   RoutinesNotifier() : super([]) {
@@ -131,7 +132,47 @@ class RoutinesNotifier extends StateNotifier<List<Routine>> {
   }
 
   Future<void> deleteRoutine(String id) async {
+    final routineToDelete = state.firstWhere((r) => r.id == id, orElse: () => Routine(id: '', name: '', exercises: [], dateCreated: DateTime.now()));
+    if (routineToDelete.id.isEmpty) return;
+
     final updated = state.where((r) => r.id != id).toList();
+    
+    // Check if any exercises from the deleted routine are now orphans
+    final allRemainingExercises = updated.expand((r) => r.exercises.map((e) => e.name.trim().toLowerCase())).toSet();
+    final List<RoutineExercise> newlyOrphaned = [];
+
+    for (var ex in routineToDelete.exercises) {
+      if (!allRemainingExercises.contains(ex.name.trim().toLowerCase())) {
+        newlyOrphaned.add(ex.copyWith(dayGroup: 'Día A'));
+      }
+    }
+
+    if (newlyOrphaned.isNotEmpty) {
+      // Find or create 'Otro' routine to place these orphaned exercises
+      final existingOtroIdx = updated.indexWhere((r) => r.name.toLowerCase() == 'otro' || r.name.toLowerCase() == 'otros');
+      if (existingOtroIdx != -1) {
+        final existingOtro = updated[existingOtroIdx];
+        final currentExercises = existingOtro.exercises.map((e) => e.name.toLowerCase().trim()).toSet();
+        final List<RoutineExercise> toAdd = [];
+        for (var ex in newlyOrphaned) {
+          if (!currentExercises.contains(ex.name.toLowerCase().trim())) {
+            toAdd.add(ex);
+          }
+        }
+        if (toAdd.isNotEmpty) {
+          updated[existingOtroIdx] = existingOtro.copyWith(exercises: [...existingOtro.exercises, ...toAdd]);
+        }
+      } else {
+        final newRoutine = Routine(
+          id: 'routine_otro_${DateTime.now().millisecondsSinceEpoch}',
+          name: 'Otro',
+          exercises: newlyOrphaned,
+          dateCreated: DateTime.now(),
+        );
+        updated.add(newRoutine);
+      }
+    }
+
     state = updated;
     await _saveToPrefs(updated);
   }
@@ -187,6 +228,80 @@ class RoutinesNotifier extends StateNotifier<List<Routine>> {
       return routine;
     }).toList();
 
+    await _saveToPrefs(state);
+  }
+
+  Future<void> syncOrphanExercises(List<WorkoutRecord> history) async {
+    if (history.isEmpty) return;
+    
+    final allHistoryExercises = history.map((r) => r.exerciseName.trim()).toSet();
+    final allRoutineExercises = state.expand((r) => r.exercises.map((e) => e.name.trim())).toSet();
+    
+    final orphanExercises = allHistoryExercises.where((e) => !allRoutineExercises.contains(e)).toList();
+    if (orphanExercises.isEmpty) return;
+
+    final existingOtroIdx = state.indexWhere((r) => r.name.toLowerCase() == 'otro' || r.name.toLowerCase() == 'otros');
+    
+    if (existingOtroIdx != -1) {
+      final existingOtro = state[existingOtroIdx];
+      final currentExercises = existingOtro.exercises.map((e) => e.name.toLowerCase().trim()).toSet();
+      final newExercisesToAdd = orphanExercises
+          .where((name) => !currentExercises.contains(name.toLowerCase().trim()))
+          .map((name) => RoutineExercise(name: name, sets: 4, reps: 10, dayGroup: 'Día A'))
+          .toList();
+      
+      if (newExercisesToAdd.isNotEmpty) {
+        final updatedExercises = [...existingOtro.exercises, ...newExercisesToAdd];
+        state = state.map((r) => r.id == existingOtro.id ? r.copyWith(exercises: updatedExercises) : r).toList();
+        await _saveToPrefs(state);
+      }
+    } else {
+      final newRoutineExercises = orphanExercises
+          .map((name) => RoutineExercise(name: name, sets: 4, reps: 10, dayGroup: 'Día A'))
+          .toList();
+      
+      final newRoutine = Routine(
+        id: 'routine_otro_${DateTime.now().millisecondsSinceEpoch}',
+        name: 'Otro',
+        exercises: newRoutineExercises,
+        dateCreated: DateTime.now(),
+      );
+      
+      state = [...state, newRoutine];
+      await _saveToPrefs(state);
+    }
+  }
+
+  Future<void> reorderExercise(String routineId, String dayGroup, int oldIndex, int newIndex) async {
+    state = state.map((routine) {
+      if (routine.id == routineId) {
+        final groupExercises = routine.exercises.where((e) => e.dayGroup == dayGroup).toList();
+        
+        if (oldIndex < newIndex) {
+          newIndex -= 1;
+        }
+        
+        if (oldIndex >= 0 && oldIndex < groupExercises.length && newIndex >= 0 && newIndex <= groupExercises.length) {
+          final item = groupExercises.removeAt(oldIndex);
+          groupExercises.insert(newIndex, item);
+        }
+        
+        final List<RoutineExercise> updatedExercises = [];
+        for (var ex in routine.exercises) {
+          if (ex.dayGroup == dayGroup) {
+            if (!updatedExercises.any((e) => e.dayGroup == dayGroup)) {
+              updatedExercises.addAll(groupExercises);
+            }
+          } else {
+            updatedExercises.add(ex);
+          }
+        }
+        
+        return routine.copyWith(exercises: updatedExercises);
+      }
+      return routine;
+    }).toList();
+    
     await _saveToPrefs(state);
   }
 }

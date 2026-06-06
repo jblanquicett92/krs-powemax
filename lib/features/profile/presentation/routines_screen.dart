@@ -19,7 +19,6 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
   final _newExerciseController = TextEditingController();
   final _setsController = TextEditingController(text: '4');
   final _repsController = TextEditingController(text: '10');
-  String _selectedDayGroup = 'Día A';
   String? _expandedRoutineId;
 
   @override
@@ -134,24 +133,7 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
     final routines = ref.read(routinesProvider);
     final currentRoutine = routines.firstWhere((r) => r.id == routineId);
 
-    // Dynamically build day options to prevent assertion crash
-    final existingGroups = currentRoutine.exercises.map((e) => e.dayGroup).toSet().toList();
-    final List<String> dayOptions = [
-      'Empuje A (Enfoque fuerza)',
-      'Empuje B (Enfoque hipertrofia)',
-      'Jalón A (Enfoque fuerza/amplitud)',
-      'Jalón B (Enfoque grosor/detalle)',
-      'Día A',
-      'Día B',
-      'Día C',
-      'Día D',
-    ];
-    for (final g in existingGroups) {
-      if (!dayOptions.contains(g)) {
-        dayOptions.add(g);
-      }
-    }
-    _selectedDayGroup = existingGroups.isNotEmpty ? existingGroups.first : dayOptions.first;
+    final defaultDay = '';
 
     final allHistoryExercises = history.map((r) => r.exerciseName.trim()).toSet();
     final allRoutineExercises = routines.expand((r) => r.exercises.map((e) => e.name.trim())).toSet();
@@ -177,6 +159,8 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
       'Zancadas',
       'Prensa de Piernas',
     }.where((e) => !currentRoutineExercises.contains(e)).toSet();
+
+    final customDayController = TextEditingController(text: defaultDay);
 
     showDialog(
       context: context,
@@ -307,7 +291,7 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Inputs para Series y Repeticiones
+                    // Inputs para Series y Repeticiones con flechas/botones de incremento
                     Row(
                       children: [
                         Expanded(
@@ -324,26 +308,57 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
                                 ),
                               ),
                               const SizedBox(height: 6),
-                              TextField(
-                                controller: _setsController,
-                                keyboardType: TextInputType.number,
-                                style: GoogleFonts.spaceGrotesk(color: Colors.white),
-                                decoration: InputDecoration(
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                    borderSide: const BorderSide(color: AppTheme.dividerColor),
+                              Row(
+                                children: [
+                                  IconButton(
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
+                                    icon: const Icon(Icons.remove_circle_outline, color: AppTheme.voltYellow, size: 20),
+                                    onPressed: () {
+                                      final current = int.tryParse(_setsController.text) ?? 0;
+                                      if (current > 1) {
+                                        setStateDialog(() {
+                                          _setsController.text = (current - 1).toString();
+                                        });
+                                      }
+                                    },
                                   ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                    borderSide: const BorderSide(color: AppTheme.voltYellow),
+                                  Expanded(
+                                    child: TextField(
+                                      controller: _setsController,
+                                      keyboardType: TextInputType.number,
+                                      textAlign: TextAlign.center,
+                                      style: GoogleFonts.spaceGrotesk(color: Colors.white),
+                                      decoration: InputDecoration(
+                                        contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                                        enabledBorder: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(10),
+                                          borderSide: const BorderSide(color: AppTheme.dividerColor),
+                                        ),
+                                        focusedBorder: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(10),
+                                          borderSide: const BorderSide(color: AppTheme.voltYellow),
+                                        ),
+                                      ),
+                                    ),
                                   ),
-                                ),
+                                  IconButton(
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
+                                    icon: const Icon(Icons.add_circle_outline, color: AppTheme.voltYellow, size: 20),
+                                    onPressed: () {
+                                      final current = int.tryParse(_setsController.text) ?? 0;
+                                      setStateDialog(() {
+                                        _setsController.text = (current + 1).toString();
+                                      });
+                                    },
+                                  ),
+                                ],
                               ),
                             ],
                           ),
                         ),
-                        const SizedBox(width: 16),
+                        const SizedBox(width: 12),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -358,21 +373,52 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
                                 ),
                               ),
                               const SizedBox(height: 6),
-                              TextField(
-                                controller: _repsController,
-                                keyboardType: TextInputType.number,
-                                style: GoogleFonts.spaceGrotesk(color: Colors.white),
-                                decoration: InputDecoration(
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                    borderSide: const BorderSide(color: AppTheme.dividerColor),
+                              Row(
+                                children: [
+                                  IconButton(
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
+                                    icon: const Icon(Icons.remove_circle_outline, color: AppTheme.voltYellow, size: 20),
+                                    onPressed: () {
+                                      final current = int.tryParse(_repsController.text) ?? 0;
+                                      if (current > 1) {
+                                        setStateDialog(() {
+                                          _repsController.text = (current - 1).toString();
+                                        });
+                                      }
+                                    },
                                   ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                    borderSide: const BorderSide(color: AppTheme.voltYellow),
+                                  Expanded(
+                                    child: TextField(
+                                      controller: _repsController,
+                                      keyboardType: TextInputType.number,
+                                      textAlign: TextAlign.center,
+                                      style: GoogleFonts.spaceGrotesk(color: Colors.white),
+                                      decoration: InputDecoration(
+                                        contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                                        enabledBorder: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(10),
+                                          borderSide: const BorderSide(color: AppTheme.dividerColor),
+                                        ),
+                                        focusedBorder: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(10),
+                                          borderSide: const BorderSide(color: AppTheme.voltYellow),
+                                        ),
+                                      ),
+                                    ),
                                   ),
-                                ),
+                                  IconButton(
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
+                                    icon: const Icon(Icons.add_circle_outline, color: AppTheme.voltYellow, size: 20),
+                                    onPressed: () {
+                                      final current = int.tryParse(_repsController.text) ?? 0;
+                                      setStateDialog(() {
+                                        _repsController.text = (current + 1).toString();
+                                      });
+                                    },
+                                  ),
+                                ],
                               ),
                             ],
                           ),
@@ -381,7 +427,7 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Selector de Grupo/Día de Rutina
+                    // Selector de Grupo/Día de Rutina (Personalizable)
                     Text(
                       'ORGANIZACIÓN (DÍA)',
                       style: GoogleFonts.spaceGrotesk(
@@ -392,32 +438,20 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
                       ),
                     ),
                     const SizedBox(height: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      decoration: BoxDecoration(
-                        color: AppTheme.darkCarbon,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppTheme.dividerColor),
-                      ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<String>(
-                          value: _selectedDayGroup,
-                          dropdownColor: AppTheme.midnightGrey,
-                          isExpanded: true,
-                          style: GoogleFonts.spaceGrotesk(color: Colors.white, fontSize: 14),
-                           items: dayOptions.map((g) {
-                            return DropdownMenuItem<String>(
-                              value: g,
-                              child: Text(g),
-                            );
-                          }).toList(),
-                          onChanged: (val) {
-                            if (val != null) {
-                              setStateDialog(() {
-                                _selectedDayGroup = val;
-                              });
-                            }
-                          },
+                    TextField(
+                      controller: customDayController,
+                      style: GoogleFonts.spaceGrotesk(color: Colors.white),
+                      decoration: InputDecoration(
+                        hintText: 'Ej. Día A, Empuje, Piernas...',
+                        hintStyle: GoogleFonts.spaceGrotesk(color: Colors.white30, fontSize: 13),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: AppTheme.dividerColor),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: AppTheme.voltYellow),
                         ),
                       ),
                     ),
@@ -444,12 +478,15 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
                               _newExerciseController.text = exercise;
                               final s = int.tryParse(_setsController.text) ?? 4;
                               final r = int.tryParse(_repsController.text) ?? 10;
+                              final finalDay = customDayController.text.trim().isNotEmpty 
+                                  ? customDayController.text.trim() 
+                                  : 'Día A';
                               ref.read(routinesProvider.notifier).addExerciseToRoutine(
                                     routineId,
                                     exercise,
                                     sets: s,
                                     reps: r,
-                                    dayGroup: _selectedDayGroup,
+                                    dayGroup: finalDay,
                                   );
                               Navigator.pop(context);
                             },
@@ -496,13 +533,16 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
                     final name = _newExerciseController.text.trim();
                     final s = int.tryParse(_setsController.text) ?? 4;
                     final r = int.tryParse(_repsController.text) ?? 10;
+                    final finalDay = customDayController.text.trim().isNotEmpty 
+                        ? customDayController.text.trim() 
+                        : 'Día A';
                     if (name.isNotEmpty) {
                       ref.read(routinesProvider.notifier).addExerciseToRoutine(
                             routineId,
                             name,
                             sets: s,
                             reps: r,
-                            dayGroup: _selectedDayGroup,
+                            dayGroup: finalDay,
                           );
                       Navigator.pop(context);
                     }
@@ -531,31 +571,11 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
   void _showEditSetsRepsDialog(String routineId, RoutineExercise exercise) {
     final setsController = TextEditingController(text: exercise.sets.toString());
     final repsController = TextEditingController(text: exercise.reps.toString());
-    String tempDayGroup = exercise.dayGroup;
+    final customDayController = TextEditingController(text: exercise.dayGroup);
 
     final routines = ref.read(routinesProvider);
-    final currentRoutine = routines.firstWhere((r) => r.id == routineId);
 
-    // Dynamically build day options to prevent assertion crash
-    final existingGroups = currentRoutine.exercises.map((e) => e.dayGroup).toSet().toList();
-    final List<String> dayOptions = [
-      'Empuje A (Enfoque fuerza)',
-      'Empuje B (Enfoque hipertrofia)',
-      'Jalón A (Enfoque fuerza/amplitud)',
-      'Jalón B (Enfoque grosor/detalle)',
-      'Día A',
-      'Día B',
-      'Día C',
-      'Día D',
-    ];
-    for (final g in existingGroups) {
-      if (!dayOptions.contains(g)) {
-        dayOptions.add(g);
-      }
-    }
-    if (!dayOptions.contains(tempDayGroup)) {
-      dayOptions.add(tempDayGroup);
-    }
+    // No prepopulated options needed as the suggestions list is removed.
 
     showDialog(
       context: context,
@@ -575,124 +595,176 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
                   color: Colors.white,
                 ),
               ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'SERIES',
-                              style: GoogleFonts.spaceGrotesk(
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                color: AppTheme.voltYellow,
-                                letterSpacing: 1.2,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            TextField(
-                              controller: setsController,
-                              keyboardType: TextInputType.number,
-                              style: GoogleFonts.spaceGrotesk(color: Colors.white),
-                              decoration: InputDecoration(
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                  borderSide: const BorderSide(color: AppTheme.dividerColor),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                  borderSide: const BorderSide(color: AppTheme.voltYellow),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'SERIES',
+                                style: GoogleFonts.spaceGrotesk(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppTheme.voltYellow,
+                                  letterSpacing: 1.2,
                                 ),
                               ),
-                            ),
-                          ],
+                              const SizedBox(height: 6),
+                              Row(
+                                children: [
+                                  IconButton(
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
+                                    icon: const Icon(Icons.remove_circle_outline, color: AppTheme.voltYellow, size: 20),
+                                    onPressed: () {
+                                      final current = int.tryParse(setsController.text) ?? 0;
+                                      if (current > 1) {
+                                        setStateDialog(() {
+                                          setsController.text = (current - 1).toString();
+                                        });
+                                      }
+                                    },
+                                  ),
+                                  Expanded(
+                                    child: TextField(
+                                      controller: setsController,
+                                      keyboardType: TextInputType.number,
+                                      textAlign: TextAlign.center,
+                                      style: GoogleFonts.spaceGrotesk(color: Colors.white),
+                                      decoration: InputDecoration(
+                                        contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                                        enabledBorder: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(10),
+                                          borderSide: const BorderSide(color: AppTheme.dividerColor),
+                                        ),
+                                        focusedBorder: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(10),
+                                          borderSide: const BorderSide(color: AppTheme.voltYellow),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  IconButton(
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
+                                    icon: const Icon(Icons.add_circle_outline, color: AppTheme.voltYellow, size: 20),
+                                    onPressed: () {
+                                      final current = int.tryParse(setsController.text) ?? 0;
+                                      setStateDialog(() {
+                                        setsController.text = (current + 1).toString();
+                                      });
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'REPETICIONES',
+                                style: GoogleFonts.spaceGrotesk(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppTheme.voltYellow,
+                                  letterSpacing: 1.2,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Row(
+                                children: [
+                                  IconButton(
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
+                                    icon: const Icon(Icons.remove_circle_outline, color: AppTheme.voltYellow, size: 20),
+                                    onPressed: () {
+                                      final current = int.tryParse(repsController.text) ?? 0;
+                                      if (current > 1) {
+                                        setStateDialog(() {
+                                          repsController.text = (current - 1).toString();
+                                        });
+                                      }
+                                    },
+                                  ),
+                                  Expanded(
+                                    child: TextField(
+                                      controller: repsController,
+                                      keyboardType: TextInputType.number,
+                                      textAlign: TextAlign.center,
+                                      style: GoogleFonts.spaceGrotesk(color: Colors.white),
+                                      decoration: InputDecoration(
+                                        contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                                        enabledBorder: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(10),
+                                          borderSide: const BorderSide(color: AppTheme.dividerColor),
+                                        ),
+                                        focusedBorder: OutlineInputBorder(
+                                          borderRadius: BorderRadius.circular(10),
+                                          borderSide: const BorderSide(color: AppTheme.voltYellow),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  IconButton(
+                                    padding: EdgeInsets.zero,
+                                    constraints: const BoxConstraints(),
+                                    icon: const Icon(Icons.add_circle_outline, color: AppTheme.voltYellow, size: 20),
+                                    onPressed: () {
+                                      final current = int.tryParse(repsController.text) ?? 0;
+                                      setStateDialog(() {
+                                        repsController.text = (current + 1).toString();
+                                      });
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    // Selector de Grupo/Día de Rutina (Personalizable)
+                    Text(
+                      'ORGANIZACIÓN (DÍA)',
+                      style: GoogleFonts.spaceGrotesk(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.voltYellow,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: customDayController,
+                      style: GoogleFonts.spaceGrotesk(color: Colors.white),
+                      decoration: InputDecoration(
+                        hintText: 'Ej. Día A, Empuje, Piernas...',
+                        hintStyle: GoogleFonts.spaceGrotesk(color: Colors.white30, fontSize: 13),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: AppTheme.dividerColor),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: AppTheme.voltYellow),
                         ),
                       ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'REPETICIONES',
-                              style: GoogleFonts.spaceGrotesk(
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                color: AppTheme.voltYellow,
-                                letterSpacing: 1.2,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            TextField(
-                              controller: repsController,
-                              keyboardType: TextInputType.number,
-                              style: GoogleFonts.spaceGrotesk(color: Colors.white),
-                              decoration: InputDecoration(
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                  borderSide: const BorderSide(color: AppTheme.dividerColor),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                  borderSide: const BorderSide(color: AppTheme.voltYellow),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  
-                  // Selector de Grupo/Día de Rutina
-                  Text(
-                    'ORGANIZACIÓN (DÍA)',
-                    style: GoogleFonts.spaceGrotesk(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: AppTheme.voltYellow,
-                      letterSpacing: 1.2,
                     ),
-                  ),
-                  const SizedBox(height: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(
-                      color: AppTheme.darkCarbon,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppTheme.dividerColor),
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: tempDayGroup,
-                        dropdownColor: AppTheme.midnightGrey,
-                        isExpanded: true,
-                        style: GoogleFonts.spaceGrotesk(color: Colors.white, fontSize: 14),
-                         items: dayOptions.map((g) {
-                            return DropdownMenuItem<String>(
-                              value: g,
-                              child: Text(g),
-                            );
-                          }).toList(),
-                        onChanged: (val) {
-                          if (val != null) {
-                            setStateDialog(() {
-                              tempDayGroup = val;
-                            });
-                          }
-                        },
-                      ),
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
               actions: [
                 TextButton(
@@ -706,12 +778,15 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
                   onPressed: () {
                     final s = int.tryParse(setsController.text) ?? exercise.sets;
                     final r = int.tryParse(repsController.text) ?? exercise.reps;
+                    final finalDay = customDayController.text.trim().isNotEmpty
+                        ? customDayController.text.trim()
+                        : exercise.dayGroup;
                     ref.read(routinesProvider.notifier).updateExerciseSetsReps(
                           routineId,
                           exercise.name,
                           s,
                           r,
-                          dayGroup: tempDayGroup,
+                          dayGroup: finalDay,
                         );
                     Navigator.pop(context);
                   },
@@ -843,7 +918,9 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              if (!routine.isDefault)
+                              if (!routine.isDefault && 
+                                  routine.name.toLowerCase() != 'otro' && 
+                                  routine.name.toLowerCase() != 'otros')
                                 IconButton(
                                   icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
                                   onPressed: () {
@@ -944,86 +1021,108 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
       );
 
       final exercises = grouped[day]!;
-      for (var exercise in exercises) {
-        final matches = history.where((r) =>
-            r.exerciseName.trim().toLowerCase() ==
-            exercise.name.trim().toLowerCase());
-        final latestRecord = matches.isEmpty ? null : matches.first;
+      widgets.add(
+        ReorderableListView.builder(
+          buildDefaultDragHandles: false,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: exercises.length,
+          onReorder: (oldIndex, newIndex) {
+            ref.read(routinesProvider.notifier).reorderExercise(
+              routine.id,
+              day,
+              oldIndex,
+              newIndex,
+            );
+          },
+          itemBuilder: (context, exIndex) {
+            final exercise = exercises[exIndex];
+            final matches = history.where((r) =>
+                r.exerciseName.trim().toLowerCase() ==
+                exercise.name.trim().toLowerCase());
+            final latestRecord = matches.isEmpty ? null : matches.first;
 
-        widgets.add(
-          Container(
-            margin: const EdgeInsets.only(bottom: 8),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: AppTheme.darkCarbon,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppTheme.dividerColor),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              exercise.name,
-                              style: GoogleFonts.spaceGrotesk(
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                                fontSize: 14,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          InkWell(
-                            onTap: () => _showEditSetsRepsDialog(routine.id, exercise),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: AppTheme.voltYellow.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
+            return Container(
+              key: ValueKey('${exercise.name}_${day}_$exIndex'),
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: AppTheme.darkCarbon,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppTheme.dividerColor),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  ReorderableDragStartListener(
+                    index: exIndex,
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                      child: Icon(Icons.drag_indicator, size: 22, color: Colors.white38),
+                    ),
+                  ),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
                               child: Text(
-                                "${exercise.sets}x${exercise.reps}",
+                                exercise.name,
                                 style: GoogleFonts.spaceGrotesk(
-                                  color: AppTheme.voltYellow,
-                                  fontSize: 10,
                                   fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                  fontSize: 14,
                                 ),
                               ),
                             ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        latestRecord != null
-                            ? "Último 1RM: ${latestRecord.oneRepMax.toStringAsFixed(1)} ${latestRecord.unit}"
-                            : "Sin registros de 1RM aún",
-                        style: GoogleFonts.spaceGrotesk(
-                          color: latestRecord != null ? AppTheme.voltYellow : Colors.white38,
-                          fontSize: 12,
+                            const SizedBox(width: 8),
+                            InkWell(
+                              onTap: () => _showEditSetsRepsDialog(routine.id, exercise),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: AppTheme.voltYellow.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  "${exercise.sets}x${exercise.reps}",
+                                  style: GoogleFonts.spaceGrotesk(
+                                    color: AppTheme.voltYellow,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 2),
+                        Text(
+                          latestRecord != null
+                              ? "Último 1RM: ${latestRecord.oneRepMax.toStringAsFixed(1)} ${latestRecord.unit}"
+                              : "Sin registros de 1RM aún",
+                          style: GoogleFonts.spaceGrotesk(
+                            color: latestRecord != null ? AppTheme.voltYellow : Colors.white38,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.close, size: 16, color: Colors.white38),
-                  onPressed: () {
-                    ref.read(routinesProvider.notifier).removeExerciseFromRoutine(routine.id, exercise.name);
-                  },
-                ),
-              ],
-            ),
-          ),
-        );
-      }
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 16, color: Colors.white38),
+                    onPressed: () {
+                      ref.read(routinesProvider.notifier).removeExerciseFromRoutine(routine.id, exercise.name);
+                    },
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      );
     }
     return widgets;
   }

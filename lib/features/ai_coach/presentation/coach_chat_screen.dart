@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/localization/app_localizations.dart';
 import '../state/coach_notifier.dart';
+import '../../settings/state/settings_notifier.dart';
 import '../../history/state/history_notifier.dart';
 
 class CoachChatScreen extends ConsumerStatefulWidget {
@@ -46,6 +47,8 @@ class _CoachChatScreenState extends ConsumerState<CoachChatScreen> {
   Widget build(BuildContext context) {
     final coachState = ref.watch(coachProvider);
     final coachNotifier = ref.read(coachProvider.notifier);
+    final settings = ref.watch(settingsProvider);
+    final isOnline = settings.aiMode == 'online';
 
     // Escucha cambios en el tamaño de la lista de mensajes para desplazarse hacia abajo
     ref.listen<CoachState>(coachProvider, (previous, next) {
@@ -57,15 +60,18 @@ class _CoachChatScreenState extends ConsumerState<CoachChatScreen> {
     // Formatear el nombre del coach para la barra superior
     String statusSubtitle = "";
     Color dotColor = Colors.white30;
-    if (coachState.isModelInstalled) {
+    if (isOnline || coachState.isModelInstalled) {
       if (coachState.isOnboarded) {
         final name = coachState.selectedCoach;
         final coachName = "${name[0].toUpperCase()}${name.substring(1)}";
-        if (coachState.isUsingLocalAI) {
-          statusSubtitle = "$coachName (Offline - IA Local)";
+        if (isOnline) {
+          statusSubtitle = "$coachName (Online)";
+          dotColor = AppTheme.electricCyan;
+        } else if (coachState.isUsingLocalAI) {
+          statusSubtitle = "$coachName (Offline)";
           dotColor = AppTheme.electricCyan;
         } else {
-          statusSubtitle = "$coachName (Offline - Simulado)";
+          statusSubtitle = "$coachName (Offline)";
           dotColor = Colors.orangeAccent;
         }
       } else {
@@ -108,7 +114,7 @@ class _CoachChatScreenState extends ConsumerState<CoachChatScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
-          if (coachState.isModelInstalled) ...[
+          if (isOnline || coachState.isModelInstalled) ...[
             if (coachState.isOnboarded)
               IconButton(
                 icon: const Icon(Icons.refresh, color: Colors.white60),
@@ -128,7 +134,7 @@ class _CoachChatScreenState extends ConsumerState<CoachChatScreen> {
           ],
         ],
       ),
-      body: !coachState.isModelInstalled
+      body: (!isOnline && !coachState.isModelInstalled)
           ? _buildDownloadInterface(context, coachState, coachNotifier)
           : (!coachState.isOnboarded
               ? _buildOnboardingInterface(context, coachState, coachNotifier)
@@ -638,6 +644,24 @@ class _CoachChatScreenState extends ConsumerState<CoachChatScreen> {
                           ),
                         ),
                       )),
+            const SizedBox(height: 24),
+            Center(
+              child: TextButton.icon(
+                onPressed: () {
+                  ref.read(settingsProvider.notifier).setAiMode('online');
+                },
+                icon: const Icon(Icons.cloud_outlined, color: AppTheme.electricCyan, size: 20),
+                label: Text(
+                  "Usar IA Online (Gratis, sin descargas)",
+                  style: GoogleFonts.spaceGrotesk(
+                    fontSize: 14,
+                    color: AppTheme.electricCyan,
+                    fontWeight: FontWeight.bold,
+                    decoration: TextDecoration.underline,
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       ),

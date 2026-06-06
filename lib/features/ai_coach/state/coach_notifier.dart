@@ -2,13 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_gemma/flutter_gemma.dart';
-import 'package:flutter_gemma/flutter_gemma_interface.dart';
-import 'package:flutter_gemma/core/di/service_registry.dart';
-import 'package:flutter_gemma/core/services/model_repository.dart' as gemma_repo;
-import 'package:flutter_gemma/core/domain/model_source.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:path_provider/path_provider.dart';
 import '../../calculator/state/calculator_notifier.dart';
 import '../../settings/state/settings_notifier.dart';
 import '../../history/state/history_notifier.dart';
@@ -116,9 +110,7 @@ class CoachState {
 
 class CoachNotifier extends StateNotifier<CoachState> {
   final Ref ref;
-  dynamic _activeChatSession; // Guarda la sesión activa de flutter_gemma en producción
   static const String _modelFileName = 'Qwen2.5-1.5B-Instruct_multi-prefill-seq_q8_ekv4096.litertlm';
-  static const String _modelDownloadUrl = 'https://huggingface.co/litert-community/Qwen2.5-1.5B-Instruct/resolve/main/Qwen2.5-1.5B-Instruct_multi-prefill-seq_q8_ekv4096.litertlm';
 
   static const String _keyIsOnboarded = 'coach_is_onboarded';
   static const String _keySelectedCoach = 'coach_selected_coach';
@@ -184,53 +176,6 @@ class CoachNotifier extends StateNotifier<CoachState> {
       final prefs = await SharedPreferences.getInstance();
       if (mySeq != _sessionSeq) return;
 
-      // Sembrar el modelo en el modelRepository si existe en el disco
-      try {
-        final modelPath = '/home/jorgeabm/.local/share/powermax_1rm/flutter_gemma/$_modelFileName';
-        final modelFile = File(modelPath);
-        if (await modelFile.exists()) {
-          final repo = ServiceRegistry.instance.modelRepository;
-          if (!await repo.isInstalled(_modelFileName)) {
-            print("[CoachNotifier] Se detectó el archivo del modelo en disco pero no estaba registrado. Registrando en SharedPreferencesModelRepository...");
-            await repo.saveModel(gemma_repo.ModelInfo(
-              id: _modelFileName,
-              source: ModelSource.network(_modelDownloadUrl),
-              installedAt: DateTime.now(),
-              sizeBytes: await modelFile.length(),
-              type: gemma_repo.ModelType.inference,
-              hasLoraWeights: false,
-            ));
-            if (mySeq != _sessionSeq) return;
-            print("[CoachNotifier] Registro completado con éxito.");
-          }
-
-          // Forzar a que sea el modelo activo en SharedPreferences
-          final currentActive = prefs.getString('active_inference_filename');
-          final activeModelType = prefs.getString('active_inference_model_type');
-          final activeFileType = prefs.getString('active_inference_file_type');
-          if (currentActive != _modelFileName || activeModelType != 'qwen' || activeFileType != 'litertlm') {
-            print("[CoachNotifier] Forzando $_modelFileName como el modelo de inferencia activo (tipo: qwen, fileType: litertlm)...");
-            await prefs.setString('active_inference_filename', _modelFileName);
-            await prefs.setString('active_inference_model_type', 'qwen');
-            await prefs.setString('active_inference_file_type', 'litertlm');
-            await prefs.setString('active_inference_source', 'network|$_modelDownloadUrl');
-            if (mySeq != _sessionSeq) return;
-          }
-        }
-      } catch (e) {
-        print("[CoachNotifier] Error al sembrar registro de modelo: $e");
-      }
-
-      // Inicializar el modelManager de forma dinámica para restaurar el modelo activo en desktop
-      try {
-        final manager = FlutterGemmaPlugin.instance.modelManager;
-        await (manager as dynamic).initialize();
-        if (mySeq != _sessionSeq) return;
-        print("ModelManager de FlutterGemma inicializado correctamente.");
-      } catch (e) {
-        print("Advertencia: No se pudo inicializar el modelManager de forma dinámica: $e");
-      }
-
       final bool isOnboarded = prefs.getBool(_keyIsOnboarded) ?? false;
       final String selectedCoach = prefs.getString(_keySelectedCoach) ?? 'cristian';
       final String? exp = prefs.getString(_keyExperienceLevel);
@@ -263,63 +208,14 @@ class CoachNotifier extends StateNotifier<CoachState> {
         deviceRamMb: deviceRamMb,
       );
 
-      bool isInstalled = false;
-      try {
-        final appSupportDir = await getApplicationSupportDirectory();
-        final modelPath = '${appSupportDir.path}/flutter_gemma/$_modelFileName';
-        final fileExists = await File(modelPath).exists();
-        final isRegistered = await FlutterGemma.isModelInstalled(_modelFileName);
-        
-        if (isRegistered && !fileExists) {
-          print("[CoachNotifier] El modelo figura como registrado en DB pero no existe físicamente en: $modelPath. Desinstalando de la DB...");
-          await FlutterGemma.uninstallModel(_modelFileName);
-          isInstalled = false;
-        } else {
-          isInstalled = fileExists && isRegistered;
-        }
-        if (mySeq != _sessionSeq) return;
-      } catch (e) {
-        isInstalled = false;
-      }
-      state = state.copyWith(isModelInstalled: isInstalled);
+      state = state.copyWith(isModelInstalled: true);
       
-      if (isInstalled && isOnboarded) {
+      if (isOnboarded) {
         if (state.messages.isEmpty) {
           await _initializeChatSession();
-        } else {
-          try {
-            final model = await FlutterGemma.getActiveModel(
-              maxTokens: 1024,
-              preferredBackend: PreferredBackend.cpu,
-            );
-            if (mySeq != _sessionSeq) return;
-
-            final newSession = await model.openChat(
-              systemInstruction: systemPrompt,
-              temperature: 0.6,
-              topK: 40,
-              topP: 0.95,
-            );
-            if (mySeq != _sessionSeq) {
-              newSession.close();
-              return;
-            }
-            _activeChatSession = newSession;
-            
-            // Sembrar el historial limitado (últimos 2 turnos) en el canal nativo y de chat
-            final historyList = _getLast2Turns(state.messages);
-            _activeChatSession.seedHistory(historyList);
-            print("[CoachNotifier] Se restauró el historial limitado a los últimos 2 turnos (${historyList.length} mensajes) en el inicio.");
-          } catch (e, stack) {
-            print("==================== ERROR AL CARGAR MODELO (Startup) ====================");
-            print("Error: $e");
-            print("Stacktrace:\n$stack");
-            print("=========================================================================");
-            _activeChatSession = null;
-          }
         }
       }
-      state = state.copyWith(isUsingLocalAI: _activeChatSession != null);
+      state = state.copyWith(isUsingLocalAI: false);
     } catch (e) {
       state = state.copyWith(isModelInstalled: false, isUsingLocalAI: false);
     }
@@ -354,35 +250,8 @@ class CoachNotifier extends StateNotifier<CoachState> {
       await _initializeChatSession();
     } else {
       await _saveConversationsToPrefs();
-      if (mySeq != _sessionSeq) return;
-      try {
-        final model = await FlutterGemma.getActiveModel(
-          maxTokens: 1024,
-          preferredBackend: PreferredBackend.cpu,
-        );
-        if (mySeq != _sessionSeq) return;
-        
-        final newSession = await model.openChat(
-          systemInstruction: systemPrompt,
-          temperature: 0.6,
-          topK: 40,
-          topP: 0.95,
-        );
-        if (mySeq != _sessionSeq) {
-          newSession.close();
-          return;
-        }
-        _activeChatSession = newSession;
-        
-        final historyList = _getLast2Turns(targetMessages);
-        _activeChatSession.seedHistory(historyList);
-        print("[CoachNotifier] Cambiado ejercicio a $exercise. Historial restaurado con los últimos 2 turnos (${historyList.length} mensajes).");
-      } catch (e) {
-        print("[CoachNotifier] Error al cambiar la sesión de chat: $e");
-        _activeChatSession = null;
-      }
     }
-    state = state.copyWith(isUsingLocalAI: _activeChatSession != null);
+    state = state.copyWith(isUsingLocalAI: false);
   }
 
   // Obtiene las últimas 3 marcas de un ejercicio específico
@@ -399,21 +268,55 @@ class CoachNotifier extends StateNotifier<CoachState> {
 
   String _buildSystemPrompt() {
     final calcState = ref.read(calculatorProvider);
-    final unit = ref.read(settingsProvider).weightUnit;
+    final settings = ref.read(settingsProvider);
+    final unit = settings.weightUnit;
     final r1rm = calcState.calculated1RM;
 
     String coachInstruction = "";
-    const String extremeConciseness = " Habla de forma EXTREMADAMENTE breve, concisa y directa al grano para ahorrar tokens y procesamiento (máximo 2 oraciones o 40 palabras en total, sin saludos redundantes ni introducciones largas).";
+    final isOnline = settings.aiMode == 'online';
+    final String concisenessConstraint = isOnline 
+        ? " Da respuestas detalladas, fluidas, estructuradas y completas con contexto explicativo, tips de técnica, motivación y nutrición sin límite de palabras."
+        : " Habla de forma EXTREMADAMENTE breve, concisa y directa al grano para ahorrar tokens y procesamiento (máximo 2 oraciones o 40 palabras en total, sin saludos redundantes ni introducciones largas).";
     
     if (state.selectedCoach == 'cristian') {
-      coachInstruction = "Eres Cristian, motivador entrenador de hipertrofia. Enfatiza RPE 8-10 y tempo lento.$extremeConciseness";
+      coachInstruction = "Eres Cristian, un motivador entrenador personal experto en hipertrofia y culturismo. Enfatiza series al RPE 8-10, control excéntrico y tempo lento.$concisenessConstraint";
     } else if (state.selectedCoach == 'ana') {
-      coachInstruction = "Eres Ana, coach de definición y nutrición. Enfatiza déficit inteligente y cardio metabólico.$extremeConciseness";
+      coachInstruction = "Eres Ana, una apasionada coach de definición, pérdida de grasa y nutrición deportiva. Enfatiza el déficit calórico inteligente, la ingesta proteica y el cardio metabólico.$concisenessConstraint";
     } else {
-      coachInstruction = "Eres Igor, serio entrenador soviético de powerlifting. Enfatiza fuerza máxima y bajas repeticiones.$extremeConciseness";
+      coachInstruction = "Eres Igor, un serio y directo entrenador soviético de powerlifting y fuerza máxima. Enfatiza progresión de cargas, velocidad de barra y bajas repeticiones.$concisenessConstraint";
     }
 
-    String systemPrompt = coachInstruction;
+    double? bmi;
+    if (settings.userHeight > 0 && settings.userWeight > 0) {
+      double weightKg = settings.userWeight;
+      if (settings.weightUnit == 'lbs') {
+        weightKg = settings.userWeight * 0.45359237;
+      }
+      final heightM = settings.userHeight / 100.0;
+      bmi = weightKg / (heightM * heightM);
+    }
+
+    String profileInfo = "";
+    final hasName = settings.userName.trim().isNotEmpty;
+    final hasAge = settings.userAge > 0;
+    final hasHeight = settings.userHeight > 0;
+    final hasWeight = settings.userWeight > 0;
+    final hasGoal = settings.userGoal.trim().isNotEmpty;
+
+    if (hasName || hasAge || hasHeight || hasWeight || hasGoal) {
+      profileInfo += " Datos de perfil del usuario:";
+      if (hasName) profileInfo += " Nombre: ${settings.userName}.";
+      if (hasAge) profileInfo += " Edad: ${settings.userAge} años.";
+      if (hasHeight) profileInfo += " Altura: ${settings.userHeight} cm.";
+      if (hasWeight) profileInfo += " Peso: ${settings.userWeight} ${settings.weightUnit}.";
+      if (bmi != null) profileInfo += " IMC (Índice de Masa Corporal): ${bmi.toStringAsFixed(1)}.";
+      if (hasGoal) profileInfo += " Objetivo del usuario: ${settings.userGoal}.";
+      profileInfo += " Usa estos datos para personalizar tu asesoría y consejos.";
+    } else {
+      profileInfo += " El usuario no ha completado sus datos de perfil (nombre, edad, peso, altura u objetivo) en la pestaña de perfil/ajustes. Sugiérele o solicítale sutilmente y con tacto, cuando sea natural en la conversación, que complete su perfil para poder calcular su IMC (Índice de Masa Corporal) y personalizar mucho mejor sus entrenamientos.";
+    }
+
+    String systemPrompt = coachInstruction + profileInfo;
     if (state.activeExercise != 'General') {
       final last3 = _getLast3Records(state.activeExercise);
       String historyContext = "";
@@ -432,27 +335,7 @@ class CoachNotifier extends StateNotifier<CoachState> {
     return systemPrompt;
   }
 
-  List<({bool isUser, String text})> _getLast2Turns(List<ChatMessage> messages) {
-    final List<ChatMessage> recentHistory = [];
-    int userMsgCount = 0;
-    for (int i = messages.length - 1; i >= 0; i--) {
-      final msg = messages[i];
-      if (msg.isUser) {
-        userMsgCount++;
-      }
-      if (userMsgCount <= 2) {
-        recentHistory.insert(0, msg);
-      } else {
-        break;
-      }
-    }
 
-    final historyList = recentHistory.map((m) => (isUser: m.isUser, text: m.text)).toList();
-    if (historyList.isNotEmpty && !historyList.first.isUser) {
-      historyList.removeAt(0);
-    }
-    return historyList;
-  }
 
   // Completa el formulario de datos, propone el coach idóneo y lo guarda de forma persistente
   Future<void> completeOnboarding({
@@ -519,55 +402,30 @@ class CoachNotifier extends StateNotifier<CoachState> {
     _initializeChatSession();
   }
 
-  // Descarga e instala el modelo LLM local desde HuggingFace
+  // Descarga e instala el modelo LLM local desde HuggingFace (Mockeado)
   Future<void> downloadModel() async {
     final mySeq = ++_sessionSeq;
     state = state.copyWith(isDownloading: true, downloadProgress: 0, error: null);
 
-    try {
-      await FlutterGemma.installModel(
-        modelType: ModelType.qwen,
-        fileType: ModelFileType.litertlm,
-      )
-          .fromNetwork(_modelDownloadUrl)
-          .withProgress((progress) {
-            if (mySeq == _sessionSeq) {
-              state = state.copyWith(downloadProgress: progress);
-            }
-          })
-          .install();
-
-      if (mySeq != _sessionSeq) return;
-
-      state = state.copyWith(
-        isDownloading: false,
-        isModelInstalled: true,
-        downloadProgress: 100,
-      );
-      _initializeChatSession();
-    } catch (e) {
-      if (mySeq != _sessionSeq) return;
-      // Modo de Simulación de Prototipo (Mecanismo de Respaldo Excepcional)
-      int progress = 0;
-      Timer.periodic(const Duration(milliseconds: 100), (timer) {
-        if (mySeq != _sessionSeq) {
-          timer.cancel();
-          return;
-        }
-        progress += 5;
-        if (progress <= 100) {
-          state = state.copyWith(downloadProgress: progress);
-        } else {
-          timer.cancel();
-          state = state.copyWith(
-            isDownloading: false,
-            isModelInstalled: true,
-            downloadProgress: 100,
-          );
-          _initializeChatSession();
-        }
-      });
-    }
+    int progress = 0;
+    Timer.periodic(const Duration(milliseconds: 50), (timer) {
+      if (mySeq != _sessionSeq) {
+        timer.cancel();
+        return;
+      }
+      progress += 10;
+      if (progress <= 100) {
+        state = state.copyWith(downloadProgress: progress);
+      } else {
+        timer.cancel();
+        state = state.copyWith(
+          isDownloading: false,
+          isModelInstalled: true,
+          downloadProgress: 100,
+        );
+        _initializeChatSession();
+      }
+    });
   }
 
   // Inicializa el chat con el mensaje de bienvenida y personalidad del coach seleccionado
@@ -620,42 +478,9 @@ class CoachNotifier extends StateNotifier<CoachState> {
 
     // Guardar la conversación recién inicializada
     await _saveConversationsToPrefs();
-    if (mySeq != _sessionSeq) return;
-
-    try {
-      final model = await FlutterGemma.getActiveModel(
-        maxTokens: 1024,
-        preferredBackend: PreferredBackend.cpu,
-      );
-      if (mySeq != _sessionSeq) return;
-
-      final newSession = await model.openChat(
-        systemInstruction: systemPrompt,
-        temperature: 0.6,
-        topK: 40,
-        topP: 0.95,
-      );
-      if (mySeq != _sessionSeq) {
-        newSession.close();
-        return;
-      }
-      _activeChatSession = newSession;
-      
-      // Sembrar el historial de bienvenida limitado en el canal nativo y de chat
-      final historyList = _getLast2Turns(state.messages);
-      _activeChatSession.seedHistory(historyList);
-      print("[CoachNotifier] Sesión de chat inicializada y bienvenida sembrada con los últimos 2 turnos (${historyList.length} mensajes).");
-    } catch (e, stack) {
-      print("==================== ERROR AL INICIALIZAR CHAT SESSION ====================");
-      print("Error: $e");
-      print("Stacktrace:\n$stack");
-      print("===========================================================================");
-      _activeChatSession = null;
-    }
-    state = state.copyWith(isUsingLocalAI: _activeChatSession != null);
+    state = state.copyWith(isUsingLocalAI: false);
   }
 
-  // Envía un mensaje al entrenador de IA
   // Envía un mensaje al entrenador de IA
   Future<void> sendMessage(String text) async {
     if (text.trim().isEmpty) return;
@@ -678,74 +503,102 @@ class CoachNotifier extends StateNotifier<CoachState> {
     print("Prompt: $text");
     print("=========================================================");
 
-    try {
-      // 1. Obtener la instrucción del sistema actualizada con los últimos registros de 1RM
-      final systemPrompt = _buildSystemPrompt();
+    final settings = ref.read(settingsProvider);
+    final systemPrompt = _buildSystemPrompt();
 
-      // 2. Cerrar la sesión de chat activa previa para evitar fugas de memoria
-      if (_activeChatSession != null) {
+    if (settings.aiMode == 'online') {
+      final isGeminiKeyRestricted = settings.geminiApiKey.trim().startsWith('AQ.');
+      final activeProvider = isGeminiKeyRestricted ? 'huggingface' : settings.onlineProvider;
+
+      if (activeProvider == 'gemini') {
+        if (settings.geminiApiKey.isEmpty) {
+          final errorMsg = ChatMessage(
+            text: "Configuración incompleta: Por favor, ve a la pantalla de Ajustes e ingresa tu API Key de Gemini para poder chatear con tu entrenador online de forma gratuita.",
+            isUser: false,
+          );
+          state = state.copyWith(
+            messages: [...state.messages, errorMsg],
+            isThinking: false,
+          );
+          await _saveConversationsToPrefs();
+          return;
+        }
+
         try {
-          await _activeChatSession.close();
-        } catch (_) {}
+          final responseText = await _callGeminiApi(
+            systemPrompt,
+            state.messages,
+            settings.geminiApiKey,
+          );
+
+          print("==================== IA OUTPUT RESPONSE (GEMINI) ====================");
+          print("Response: $responseText");
+          print("=====================================================================");
+
+          state = state.copyWith(
+            messages: [
+              ...state.messages,
+              ChatMessage(text: responseText, isUser: false),
+            ],
+            isThinking: false,
+            isUsingLocalAI: false,
+          );
+          await _saveConversationsToPrefs();
+        } catch (e) {
+          print("==================== ERROR EN GEMINI API ====================");
+          print("Error: $e");
+          print("=============================================================");
+          final errorMsg = ChatMessage(
+            text: "Error al llamar a la API de Gemini: $e",
+            isUser: false,
+          );
+          state = state.copyWith(
+            messages: [...state.messages, errorMsg],
+            isThinking: false,
+          );
+          await _saveConversationsToPrefs();
+        }
+      } else {
+        // Hugging Face API Mode
+        try {
+          final responseText = await _callHuggingFaceApi(
+            systemPrompt,
+            state.messages,
+            settings.huggingFaceToken,
+          );
+
+          print("==================== IA OUTPUT RESPONSE (HUGGINGFACE) ====================");
+          print("Response: $responseText");
+          print("==========================================================================");
+
+          state = state.copyWith(
+            messages: [
+              ...state.messages,
+              ChatMessage(text: responseText, isUser: false),
+            ],
+            isThinking: false,
+            isUsingLocalAI: false,
+          );
+          await _saveConversationsToPrefs();
+        } catch (e) {
+          print("==================== ERROR EN HUGGING FACE API ====================");
+          print("Error: $e");
+          print("====================================================================");
+          final errorMsg = ChatMessage(
+            text: "Error al llamar a la API de Hugging Face: $e",
+            isUser: false,
+          );
+          state = state.copyWith(
+            messages: [...state.messages, errorMsg],
+            isThinking: false,
+          );
+          await _saveConversationsToPrefs();
+        }
       }
-
-      // 3. Crear una nueva sesión con el prompt del sistema actualizado
-      final model = await FlutterGemma.getActiveModel(
-        maxTokens: 1024,
-        preferredBackend: PreferredBackend.cpu,
-      );
-      final newSession = await model.openChat(
-        systemInstruction: systemPrompt,
-        temperature: 0.6,
-        topK: 40,
-        topP: 0.95,
-      );
-      _activeChatSession = newSession;
-
-      // 4. Extraer los últimos 2 turnos de la conversación histórica (excluyendo el mensaje que se acaba de guardar)
-      final historyMessages = state.messages.sublist(0, state.messages.length - 1);
-      final historyList = _getLast2Turns(historyMessages);
-
-      // 5. Sembrar el historial limitado en la sesión activa
-      _activeChatSession.seedHistory(historyList);
-      print("[CoachNotifier] Sesión de chat recreada con el último prompt de sistema y ${historyList.length} mensajes de historial (últimos 2 turnos).");
-
-      // 6. Enviar la consulta actual
-      await _activeChatSession.addQueryChunk(Message.text(text: text, isUser: true));
-      
-      final response = await _activeChatSession.generateChatResponse();
-      String replyText = "Entendido.";
-      if (response is TextResponse) {
-        replyText = response.token;
-      }
-
-      // Imprimir OUTPUT de interacción con la IA (Producción)
-      print("==================== IA OUTPUT RESPONSE ====================");
-      print("Response: $replyText");
-      print("============================================================");
-
-      state = state.copyWith(
-        messages: [
-          ...state.messages,
-          ChatMessage(text: replyText, isUser: false),
-        ],
-        isThinking: false,
-        isUsingLocalAI: true,
-      );
-      await _saveConversationsToPrefs();
-    } catch (e, stack) {
-      print("==================== ERROR EN SENDMESSAGE GENERATE ====================");
-      print("Error: $e");
-      print("Stacktrace:\n$stack");
-      print("=======================================================================");
-      
-      final errorMsg = ChatMessage(text: "Error de IA Local (Inferencia): $e", isUser: false);
-      state = state.copyWith(
-        messages: [...state.messages, errorMsg],
-        isThinking: false,
-      );
-      await _saveConversationsToPrefs();
+      return;
     }
+
+    _fallbackResponse(text);
   }
 
   // Genera respuestas simuladas inteligentes basadas en el 1RM actual y la personalidad del coach
@@ -918,25 +771,6 @@ class CoachNotifier extends StateNotifier<CoachState> {
   }
 
   Future<void> deleteModel() async {
-    try {
-      await FlutterGemma.uninstallModel(_modelFileName);
-      print("Modelo eliminado exitosamente desde la API de FlutterGemma.");
-    } catch (e) {
-      print("Error al eliminar el modelo a través de la API: $e");
-    }
-
-    try {
-      final appSupportDir = await getApplicationSupportDirectory();
-      final targetPath = '${appSupportDir.path}/flutter_gemma/$_modelFileName';
-      final file = File(targetPath);
-      if (await file.exists()) {
-        await file.delete();
-        print("Archivo físico del modelo eliminado manualmente: $targetPath");
-      }
-    } catch (e) {
-      print("Error al eliminar manualmente el archivo físico: $e");
-    }
-
     state = state.copyWith(
       isModelInstalled: false,
       isUsingLocalAI: false,
@@ -948,6 +782,131 @@ class CoachNotifier extends StateNotifier<CoachState> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('coach_is_onboarded');
     await prefs.remove('coach_conversations');
+  }
+
+  Future<String> _callGeminiApi(String systemPrompt, List<ChatMessage> history, String apiKey) async {
+    final client = HttpClient();
+    try {
+      final uri = Uri.parse("https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=" + apiKey);
+      final request = await client.postUrl(uri);
+      request.headers.contentType = ContentType.json;
+
+      final List<Map<String, dynamic>> contents = [];
+      for (final msg in history) {
+        // La API de chat de Gemini requiere que el primer mensaje tenga el rol 'user'
+        if (contents.isEmpty && !msg.isUser) {
+          continue;
+        }
+        contents.add({
+          "role": msg.isUser ? "user" : "model",
+          "parts": [{"text": msg.text}]
+        });
+      }
+
+      final body = {
+        "contents": contents,
+        "systemInstruction": {
+          "parts": [{"text": systemPrompt}]
+        },
+        "generationConfig": {
+          "temperature": 0.6,
+          "maxOutputTokens": 8192,
+        }
+      };
+
+      request.write(jsonEncode(body));
+      final response = await request.close();
+
+      if (response.statusCode == 200) {
+        final responseBody = await response.transform(utf8.decoder).join();
+        final decoded = jsonDecode(responseBody) as Map<String, dynamic>;
+
+        final candidates = decoded["candidates"] as List<dynamic>?;
+        if (candidates != null && candidates.isNotEmpty) {
+          final content = candidates[0]["content"] as Map<String, dynamic>?;
+          if (content != null) {
+            final parts = content["parts"] as List<dynamic>?;
+            if (parts != null && parts.isNotEmpty) {
+              return parts[0]["text"] as String? ?? "Entendido.";
+            }
+          }
+        }
+        return "Lo siento, no pude obtener respuesta del servidor.";
+      } else {
+        final errorResponse = await response.transform(utf8.decoder).join();
+        print("[Gemini API Error] Status ${response.statusCode}: $errorResponse");
+        return "Error al conectar con la API de Gemini (Código " + response.statusCode.toString() + ").";
+      }
+    } catch (e) {
+      print("[Gemini API Exception] $e");
+      if (e is SocketException) {
+        return "Error de conexión: Parece que no tienes acceso a internet. Verifica tu red e intenta nuevamente.";
+      }
+      return "Error de conexión: No se pudo contactar con la API de Gemini.";
+    } finally {
+      client.close();
+    }
+  }
+
+  Future<String> _callHuggingFaceApi(String systemPrompt, List<ChatMessage> history, String token) async {
+    final client = HttpClient();
+    try {
+      final uri = Uri.parse("https://api-inference.huggingface.co/models/Qwen/Qwen2.5-7B-Instruct/v1/chat/completions");
+      final request = await client.postUrl(uri);
+      request.headers.contentType = ContentType.json;
+      if (token.isNotEmpty) {
+        request.headers.set("Authorization", "Bearer " + token);
+      }
+
+      final List<Map<String, dynamic>> messages = [
+        {"role": "system", "content": systemPrompt}
+      ];
+      for (final msg in history) {
+        messages.add({
+          "role": msg.isUser ? "user" : "assistant",
+          "content": msg.text
+        });
+      }
+
+      final body = {
+        "model": "Qwen/Qwen2.5-7B-Instruct",
+        "messages": messages,
+        "max_tokens": 2048,
+        "temperature": 0.6
+      };
+
+      request.write(jsonEncode(body));
+      final response = await request.close();
+
+      if (response.statusCode == 200) {
+        final responseBody = await response.transform(utf8.decoder).join();
+        final decoded = jsonDecode(responseBody) as Map<String, dynamic>;
+
+        final choices = decoded["choices"] as List<dynamic>?;
+        if (choices != null && choices.isNotEmpty) {
+          final message = choices[0]["message"] as Map<String, dynamic>?;
+          if (message != null) {
+            return message["content"] as String? ?? "Entendido.";
+          }
+        }
+        return "Lo siento, no pude procesar la respuesta del modelo.";
+      } else {
+        final errorResponse = await response.transform(utf8.decoder).join();
+        print("[Hugging Face API Error] Status ${response.statusCode}: $errorResponse");
+        if (response.statusCode == 503) {
+          return "El modelo se está cargando en Hugging Face. Por favor, espera unos segundos e intenta enviar el mensaje nuevamente.";
+        }
+        return "Error al conectar con Hugging Face (Código " + response.statusCode.toString() + ").";
+      }
+    } catch (e) {
+      print("[Hugging Face API Exception] $e");
+      if (e is SocketException) {
+        return "Error de conexión: Parece que no tienes acceso a internet. Verifica tu red e intenta nuevamente.";
+      }
+      return "Error de conexión: No se pudo contactar con Hugging Face.";
+    } finally {
+      client.close();
+    }
   }
 
   void clearChat() {

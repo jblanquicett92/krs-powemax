@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/localization/app_localizations.dart';
@@ -17,6 +18,10 @@ class SettingsState {
   final int selectedBeepSound; // 1, 2, 3
   final int restTimeBetweenExercises; // in seconds
   final String selectedRoutineId; // new: selected routine of the day
+  final String aiMode; // 'local' or 'online'
+  final String geminiApiKey;
+  final String onlineProvider; // 'gemini' or 'huggingface'
+  final String huggingFaceToken;
 
   SettingsState({
     required this.language,
@@ -33,6 +38,10 @@ class SettingsState {
     required this.selectedBeepSound,
     required this.restTimeBetweenExercises,
     required this.selectedRoutineId,
+    required this.aiMode,
+    required this.geminiApiKey,
+    required this.onlineProvider,
+    required this.huggingFaceToken,
   });
 
   SettingsState copyWith({
@@ -50,6 +59,10 @@ class SettingsState {
     int? selectedBeepSound,
     int? restTimeBetweenExercises,
     String? selectedRoutineId,
+    String? aiMode,
+    String? geminiApiKey,
+    String? onlineProvider,
+    String? huggingFaceToken,
   }) {
     return SettingsState(
       language: language ?? this.language,
@@ -66,6 +79,10 @@ class SettingsState {
       selectedBeepSound: selectedBeepSound ?? this.selectedBeepSound,
       restTimeBetweenExercises: restTimeBetweenExercises ?? this.restTimeBetweenExercises,
       selectedRoutineId: selectedRoutineId ?? this.selectedRoutineId,
+      aiMode: aiMode ?? this.aiMode,
+      geminiApiKey: geminiApiKey ?? this.geminiApiKey,
+      onlineProvider: onlineProvider ?? this.onlineProvider,
+      huggingFaceToken: huggingFaceToken ?? this.huggingFaceToken,
     );
   }
 }
@@ -86,6 +103,10 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
           selectedBeepSound: 1,
           restTimeBetweenExercises: 90,
           selectedRoutineId: '',
+          aiMode: 'online',
+          geminiApiKey: _defaultApiKey,
+          onlineProvider: 'gemini', // Default to gemini (Google key)
+          huggingFaceToken: '',
         )) {
     _loadSettings();
   }
@@ -104,6 +125,48 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
   static const String _keyBeepSound = 'settings_beep_sound';
   static const String _keyRestTime = 'settings_rest_time';
   static const String _keySelectedRoutine = 'settings_selected_routine';
+  static const String _keyAiMode = 'settings_ai_mode';
+  static const String _keyGeminiApiKey = 'settings_gemini_api_key_obf';
+  static const String _keyOnlineProvider = 'settings_online_provider';
+  static const String _keyHuggingFaceToken = 'settings_huggingface_token_obf';
+
+  static String get _defaultApiKey {
+    const envKey = String.fromEnvironment('GEMINI_API_KEY');
+    if (envKey.isNotEmpty) return envKey;
+    
+    final List<int> encrypted = [42, 59, 9, 62, 35, 22, 52, 52, 8, 53, 45, 29, 2, 38, 57, 49, 57, 88, 71, 34, 69, 28, 62, 59, 47, 30, 56, 19, 5, 6, 38, 6, 66, 39, 45, 14, 94, 48, 4];
+    final List<int> key = [107, 114, 115, 95, 112, 111, 119, 101, 114, 109, 97, 120]; // 'krs_powermax'
+    final List<int> result = [];
+    for (int i = 0; i < encrypted.length; i++) {
+      result.add(encrypted[i] ^ key[i % key.length]);
+    }
+    return String.fromCharCodes(result);
+  }
+
+  static String _obfuscateXor(String text) {
+    final List<int> textBytes = text.codeUnits;
+    final List<int> keyBytes = [107, 114, 115, 95, 112, 111, 119, 101, 114, 109, 97, 120];
+    final List<int> result = [];
+    for (int i = 0; i < textBytes.length; i++) {
+      result.add(textBytes[i] ^ keyBytes[i % keyBytes.length]);
+    }
+    return base64Encode(result);
+  }
+
+  static String _deobfuscateXor(String base64Text) {
+    if (base64Text.isEmpty) return '';
+    try {
+      final List<int> encryptedBytes = base64Decode(base64Text);
+      final List<int> keyBytes = [107, 114, 115, 95, 112, 111, 119, 101, 114, 109, 97, 120];
+      final List<int> result = [];
+      for (int i = 0; i < encryptedBytes.length; i++) {
+        result.add(encryptedBytes[i] ^ keyBytes[i % keyBytes.length]);
+      }
+      return String.fromCharCodes(result);
+    } catch (_) {
+      return '';
+    }
+  }
 
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
@@ -121,6 +184,21 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
     final int beepS = prefs.getInt(_keyBeepSound) ?? 1;
     final int restT = prefs.getInt(_keyRestTime) ?? 90;
     final String selRoutine = prefs.getString(_keySelectedRoutine) ?? '';
+    final String aiMode = 'online';
+    final String geminiApiKeyObf = prefs.getString(_keyGeminiApiKey) ?? '';
+    String geminiApiKey = geminiApiKeyObf.isNotEmpty 
+        ? _deobfuscateXor(geminiApiKeyObf) 
+        : _defaultApiKey;
+
+    // Si la clave guardada en el dispositivo es la antigua clave restringida (empieza con AQ.),
+    // la eliminamos de SharedPreferences para que use la nueva clave predeterminada funcional
+    if (geminiApiKey.startsWith('AQ.')) {
+      await prefs.remove(_keyGeminiApiKey);
+      geminiApiKey = _defaultApiKey;
+    }
+    final String onlineProv = prefs.getString(_keyOnlineProvider) ?? 'gemini';
+    final String hfTokenObf = prefs.getString(_keyHuggingFaceToken) ?? '';
+    final String hfToken = hfTokenObf.isNotEmpty ? _deobfuscateXor(hfTokenObf) : '';
     
     state = SettingsState(
       language: lang,
@@ -137,6 +215,10 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
       selectedBeepSound: beepS,
       restTimeBetweenExercises: restT,
       selectedRoutineId: selRoutine,
+      aiMode: aiMode,
+      geminiApiKey: geminiApiKey,
+      onlineProvider: onlineProv,
+      huggingFaceToken: hfToken,
     );
   }
 
@@ -144,8 +226,6 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyLang, lang);
     state = state.copyWith(language: lang);
-    
-    // Sincroniza con el localeProvider de localización
     ref.read(localeProvider.notifier).state = lang;
   }
 
@@ -226,9 +306,44 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
     await prefs.setString(_keySelectedRoutine, selectedRoutineId.trim());
     state = state.copyWith(selectedRoutineId: selectedRoutineId.trim());
   }
+
+  Future<void> setAiMode(String mode) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyAiMode, 'online');
+    state = state.copyWith(aiMode: 'online');
+  }
+
+  Future<void> setGeminiApiKey(String key) async {
+    final prefs = await SharedPreferences.getInstance();
+    final cleanKey = key.trim();
+    if (cleanKey.isEmpty) {
+      await prefs.remove(_keyGeminiApiKey);
+      state = state.copyWith(geminiApiKey: _defaultApiKey);
+    } else {
+      await prefs.setString(_keyGeminiApiKey, _obfuscateXor(cleanKey));
+      state = state.copyWith(geminiApiKey: cleanKey);
+    }
+  }
+
+  Future<void> setOnlineProvider(String provider) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyOnlineProvider, provider);
+    state = state.copyWith(onlineProvider: provider);
+  }
+
+  Future<void> setHuggingFaceToken(String token) async {
+    final prefs = await SharedPreferences.getInstance();
+    final cleanToken = token.trim();
+    if (cleanToken.isEmpty) {
+      await prefs.remove(_keyHuggingFaceToken);
+      state = state.copyWith(huggingFaceToken: '');
+    } else {
+      await prefs.setString(_keyHuggingFaceToken, _obfuscateXor(cleanToken));
+      state = state.copyWith(huggingFaceToken: cleanToken);
+    }
+  }
 }
 
-// Proveedor global para leer y modificar la configuración
 final settingsProvider = StateNotifierProvider<SettingsNotifier, SettingsState>((ref) {
   return SettingsNotifier();
 });

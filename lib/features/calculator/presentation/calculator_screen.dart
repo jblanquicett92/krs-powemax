@@ -12,7 +12,6 @@ import '../../history/state/history_notifier.dart';
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/services.dart';
-import 'package:audioplayers/audioplayers.dart';
 
 final selectedRoutineIdProvider = StateProvider<String?>((ref) => null);
 final currentExerciseNameProvider = StateProvider<String?>((ref) => null);
@@ -36,6 +35,8 @@ class CalculatorScreen extends ConsumerWidget {
     final history = ref.watch(historyProvider);
     final activeExercise = ref.watch(currentExerciseNameProvider);
 
+
+
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -44,35 +45,12 @@ class CalculatorScreen extends ConsumerWidget {
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        actions: [
-          // Selector rápido de unidad de peso en la barra superior
-          Padding(
-            padding: const EdgeInsets.only(right: 16.0),
-            child: Container(
-              decoration: BoxDecoration(
-                color: AppTheme.midnightGrey,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppTheme.dividerColor),
-              ),
-              child: Row(
-                children: [
-                  _buildUnitButton(ref, 'kg', settings.weightUnit == 'kg'),
-                  _buildUnitButton(ref, 'lbs', settings.weightUnit == 'lbs'),
-                ],
-              ),
-            ),
-          ),
-        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // CARD DE RESULTADO DE 1RM
-            _buildResultCard(context, ref, calcState, settings.weightUnit),
-            const SizedBox(height: 24),
-
             // RUTINA DEL DÍA
             _buildRoutineSelectorCard(context, ref, routines, history, calcNotifier),
             const SizedBox(height: 24),
@@ -157,7 +135,7 @@ class CalculatorScreen extends ConsumerWidget {
                   ),
             ),
             const SizedBox(height: 12),
-            _buildTrainingZonesList(context, ref, calcState.trainingZones, settings.weightUnit),
+            _buildTrainingZonesList(context, ref, calcState, settings.weightUnit),
             const SizedBox(height: 24),
           ],
         ),
@@ -165,86 +143,6 @@ class CalculatorScreen extends ConsumerWidget {
     );
   }
 
-  // Widget del botón rápido de unidades kg/lbs
-  Widget _buildUnitButton(WidgetRef ref, String unit, bool isActive) {
-    return GestureDetector(
-      onTap: () {
-        ref.read(settingsProvider.notifier).setWeightUnit(unit);
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: isActive ? AppTheme.voltYellow : Colors.transparent,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Text(
-          unit.toUpperCase(),
-          style: TextStyle(
-            color: isActive ? AppTheme.darkCarbon : Colors.white60,
-            fontWeight: FontWeight.bold,
-            fontSize: 13,
-          ),
-        ),
-      ),
-    );
-  }
-
-  // Tarjeta premium de visualización de 1RM
-  Widget _buildResultCard(BuildContext context, WidgetRef ref, CalculatorState state, String unit) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: AppTheme.midnightGrey,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: AppTheme.voltYellow.withOpacity(0.3), width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: AppTheme.voltYellow.withOpacity(0.05),
-            blurRadius: 20,
-            spreadRadius: 2,
-          )
-        ],
-      ),
-      child: Column(
-        children: [
-          Text(
-            context.tr('calc_result_title', ref).toUpperCase(),
-            style: GoogleFonts.spaceGrotesk(
-              color: AppTheme.voltYellow,
-              fontWeight: FontWeight.bold,
-              fontSize: 14,
-              letterSpacing: 1.5,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Text(
-                state.calculated1RM.toString(),
-                style: GoogleFonts.outfit(
-                  fontSize: 54,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-              const SizedBox(width: 4),
-              Text(
-                unit,
-                style: GoogleFonts.spaceGrotesk(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w600,
-                  color: AppTheme.textSecondary,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
 
   // Selector interactivo de peso (TextField + Slider)
 
@@ -273,28 +171,57 @@ class CalculatorScreen extends ConsumerWidget {
   }
 
   // Lista detallada de Zonas de entrenamiento
-  Widget _buildTrainingZonesList(BuildContext context, WidgetRef ref, List<TrainingZone> zones, String unit) {
+  Widget _buildTrainingZonesList(BuildContext context, WidgetRef ref, CalculatorState calcState, String unit) {
+    final zones = calcState.trainingZones;
     if (zones.isEmpty) return const SizedBox.shrink();
+
+    // Calcular el porcentaje aproximado del usuario para destacar su zona activa
+    final double userPct = calcState.calculated1RM > 0 
+        ? (calcState.weight / calcState.calculated1RM) * 100 
+        : 0.0;
+    final int targetPct = (userPct / 5).round() * 5;
+    final int activePct = targetPct.clamp(50, 100);
 
     return Column(
       children: zones.map((zone) {
+        final bool is1RM = zone.percentage == 100;
+        final bool isTargetZone = zone.percentage == activePct;
+        
         // Asignar color dinámico según la zona
         Color zoneColor = AppTheme.textSecondary;
-        if (zone.percentage >= 85) {
+        if (is1RM) {
           zoneColor = AppTheme.voltYellow;
+        } else if (zone.percentage >= 85) {
+          zoneColor = Colors.orangeAccent;
         } else if (zone.percentage >= 70) {
           zoneColor = AppTheme.electricCyan;
         } else if (zone.percentage >= 60) {
-          zoneColor = Colors.orangeAccent;
+          zoneColor = Colors.lightGreenAccent;
         }
 
         return Container(
           margin: const EdgeInsets.only(bottom: 10),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding: EdgeInsets.symmetric(horizontal: 16, vertical: isTargetZone ? 16 : 12),
           decoration: BoxDecoration(
-            color: AppTheme.midnightGrey,
+            color: isTargetZone
+                ? AppTheme.electricCyan.withOpacity(0.08)
+                : AppTheme.midnightGrey,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppTheme.dividerColor),
+            border: Border.all(
+              color: isTargetZone
+                  ? AppTheme.electricCyan.withOpacity(0.8)
+                  : AppTheme.dividerColor,
+              width: isTargetZone ? 1.5 : 1.0,
+            ),
+            boxShadow: isTargetZone
+                ? [
+                    BoxShadow(
+                      color: AppTheme.electricCyan.withOpacity(0.03),
+                      blurRadius: 10,
+                      spreadRadius: 1,
+                    )
+                  ]
+                : null,
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -313,11 +240,11 @@ class CalculatorScreen extends ConsumerWidget {
                       ),
                       child: Center(
                         child: Text(
-                          "${zone.percentage}%",
+                          is1RM ? "1RM" : "${zone.percentage}%",
                           style: TextStyle(
                             color: zoneColor,
                             fontWeight: FontWeight.bold,
-                            fontSize: 14,
+                            fontSize: is1RM ? 12 : 14,
                           ),
                         ),
                       ),
@@ -327,19 +254,47 @@ class CalculatorScreen extends ConsumerWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            context.tr(zone.categoryKey, ref),
-                            style: GoogleFonts.spaceGrotesk(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
-                            ),
+                          Row(
+                            children: [
+                              Text(
+                                is1RM ? "1RM Estimado" : context.tr(zone.categoryKey, ref),
+                                style: GoogleFonts.spaceGrotesk(
+                                  fontSize: is1RM ? 15 : 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: isTargetZone
+                                      ? AppTheme.electricCyan
+                                      : (is1RM ? AppTheme.voltYellow : Colors.white),
+                                ),
+                              ),
+                              if (isTargetZone) ...[
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.electricCyan.withOpacity(0.15),
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(
+                                      color: AppTheme.electricCyan,
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    "${calcState.reps} REPS",
+                                    style: GoogleFonts.spaceGrotesk(
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppTheme.electricCyan,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                           Text(
-                            _getZoneDescription(zone.percentage),
-                            style: const TextStyle(
+                            is1RM ? "100% de tu fuerza máxima estimada" : _getZoneDescription(zone.percentage),
+                            style: TextStyle(
                               fontSize: 11,
-                              color: Colors.white38,
+                              color: is1RM ? Colors.white70 : Colors.white38,
                             ),
                           ),
                         ],
@@ -352,9 +307,11 @@ class CalculatorScreen extends ConsumerWidget {
               Text(
                 "${zone.calculatedWeight} $unit",
                 style: GoogleFonts.spaceGrotesk(
-                  fontSize: 16,
+                  fontSize: isTargetZone ? 18 : 16,
                   fontWeight: FontWeight.bold,
-                  color: Colors.white,
+                  color: isTargetZone
+                      ? AppTheme.electricCyan
+                      : (is1RM ? AppTheme.voltYellow : Colors.white),
                 ),
               ),
             ],
@@ -515,13 +472,22 @@ class CalculatorScreen extends ConsumerWidget {
                           r.date.year == today.year &&
                           r.date.month == today.month &&
                           r.date.day == today.day
-                      ).length + 1;
+                      ).length;
 
                       if (todayCount >= currentExConfig.sets) {
                         if (currentExIndex + 1 < exercises.length) {
                           final nextEx = exercises[currentExIndex + 1];
                           ref.read(currentExerciseNameProvider.notifier).state = nextEx.name;
-                          ref.read(calculatorProvider.notifier).updateReps(nextEx.reps);
+                          final historyList = ref.read(historyProvider);
+                          final nextExRecords = historyList.where((r) =>
+                              r.exerciseName.trim().toLowerCase() == nextEx.name.trim().toLowerCase());
+                          if (nextExRecords.isNotEmpty) {
+                            final lastRecord = nextExRecords.first;
+                            ref.read(calculatorProvider.notifier).updateWeight(lastRecord.weight);
+                            ref.read(calculatorProvider.notifier).updateReps(lastRecord.reps);
+                          } else {
+                            ref.read(calculatorProvider.notifier).updateReps(nextEx.reps);
+                          }
 
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
@@ -553,6 +519,12 @@ class CalculatorScreen extends ConsumerWidget {
   ) {
     final settings = ref.watch(settingsProvider);
     final activeExercise = ref.watch(currentExerciseNameProvider);
+    final today = DateTime.now();
+    final todayRecords = history.where((r) =>
+        r.date.year == today.year &&
+        r.date.month == today.month &&
+        r.date.day == today.day
+    ).toList();
 
     final selectedRoutine = routines.isEmpty || settings.selectedRoutineId.isEmpty
         ? null
@@ -580,7 +552,9 @@ class CalculatorScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 12),
             Text(
-              "No tienes una rutina activa asignada para hoy.\nVe a Perfil > Mis Rutinas y mantén presionada una rutina para activarla.",
+              routines.isEmpty
+                  ? "No tienes rutinas creadas aún.\nVe a Perfil > Mis Rutinas para crear tu primera rutina."
+                  : "No tienes una rutina activa asignada para hoy. Selecciona una arriba o actívala desde tu perfil.",
               style: GoogleFonts.spaceGrotesk(color: Colors.white38, fontSize: 13),
             )
           ],
@@ -715,22 +689,120 @@ class CalculatorScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
 
+          // Session status summary (Active or Completed)
+          if (todayRecords.isNotEmpty) ...[
+            Builder(
+              builder: (context) {
+                final dayName = sortedDays[safeIndex];
+                
+                // Solo mostrar la sesión activa/completada si el usuario ha registrado algún ejercicio
+                // que pertenece al grupo de día seleccionado en esta pestaña
+                bool isThisDayGroupTrained = false;
+                for (final record in todayRecords) {
+                  final dayExercises = grouped[dayName] ?? [];
+                  final matchesExercise = dayExercises.any((ex) =>
+                      ex.name.trim().toLowerCase() == record.exerciseName.trim().toLowerCase());
+                  if (matchesExercise) {
+                    isThisDayGroupTrained = true;
+                    break;
+                  }
+                }
+                
+                if (!isThisDayGroupTrained) {
+                  return const SizedBox.shrink();
+                }
+
+                final sortedToday = List<WorkoutRecord>.from(todayRecords)..sort((a, b) => a.date.compareTo(b.date));
+                final firstRecordTime = sortedToday.first.date;
+                final lastRecordTime = sortedToday.last.date;
+                
+                final dayExercises = grouped[dayName]!;
+                final isAllCompleted = dayExercises.every((ex) {
+                  final exTodayRecords = todayRecords.where((r) =>
+                    r.exerciseName.trim().toLowerCase() == ex.name.trim().toLowerCase()
+                  );
+                  return exTodayRecords.length >= ex.sets;
+                });
+
+                final duration = lastRecordTime.difference(firstRecordTime);
+                final durationMin = todayRecords.length <= 1 ? 0 : (duration.inMinutes == 0 ? 1 : duration.inMinutes);
+                final todayVolume = todayRecords.fold<double>(0, (sum, r) => sum + (r.weight * r.reps));
+
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: isAllCompleted ? Colors.green.withOpacity(0.1) : AppTheme.darkCarbon,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isAllCompleted ? Colors.green : AppTheme.dividerColor,
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        isAllCompleted ? Icons.check_circle : Icons.play_circle_outline,
+                        color: isAllCompleted ? Colors.green : AppTheme.voltYellow,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              isAllCompleted ? "¡SESIÓN COMPLETADA!" : "SESIÓN ACTIVA",
+                              style: GoogleFonts.spaceGrotesk(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: isAllCompleted ? Colors.green : AppTheme.voltYellow,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              "Duración: $durationMin min | Volumen: ${todayVolume.toStringAsFixed(0)} ${settings.weightUnit}",
+                              style: GoogleFonts.spaceGrotesk(
+                                fontSize: 12,
+                                color: Colors.white70,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }
+            ),
+          ],
+
           // Slide View of Exercises
-          SizedBox(
-            height: 290,
-            child: PageView.builder(
-              controller: pageController,
-              onPageChanged: (idx) {
-                ref.read(selectedDayIndexProvider.notifier).state = idx;
-              },
-              itemCount: sortedDays.length,
-              itemBuilder: (context, pageIdx) {
-                final day = sortedDays[pageIdx];
-                final exercises = grouped[day]!;
-                return ListView.builder(
-                  shrinkWrap: true,
-                  physics: const BouncingScrollPhysics(),
-                  itemCount: exercises.length,
+          Builder(
+            builder: (context) {
+              int maxExercises = 0;
+              for (var dayGroup in grouped.values) {
+                if (dayGroup.length > maxExercises) {
+                  maxExercises = dayGroup.length;
+                }
+              }
+              final double pageViewHeight = (maxExercises * 82.0) + 16.0;
+
+              return SizedBox(
+                height: pageViewHeight,
+                child: PageView.builder(
+                  controller: pageController,
+                  onPageChanged: (idx) {
+                    ref.read(selectedDayIndexProvider.notifier).state = idx;
+                  },
+                  itemCount: sortedDays.length,
+                  itemBuilder: (context, pageIdx) {
+                    final day = sortedDays[pageIdx];
+                    final exercises = grouped[day]!;
+                    return ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: exercises.length,
                   itemBuilder: (context, exIdx) {
                     final exercise = exercises[exIdx];
                     final isSelected = activeExercise == exercise.name;
@@ -786,7 +858,6 @@ class CalculatorScreen extends ConsumerWidget {
                                           fontSize: 13,
                                           decoration: isCompleted ? TextDecoration.lineThrough : null,
                                         ),
-                                        overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
                                     const SizedBox(width: 8),
@@ -877,7 +948,16 @@ class CalculatorScreen extends ConsumerWidget {
                                 ? null
                                 : () {
                                     ref.read(currentExerciseNameProvider.notifier).state = exercise.name;
-                                    calcNotifier.updateReps(exercise.reps);
+                                    final historyList = ref.read(historyProvider);
+                                    final exRecords = historyList.where((r) =>
+                                        r.exerciseName.trim().toLowerCase() == exercise.name.trim().toLowerCase());
+                                    if (exRecords.isNotEmpty) {
+                                      final lastRecord = exRecords.first;
+                                      calcNotifier.updateWeight(lastRecord.weight);
+                                      calcNotifier.updateReps(lastRecord.reps);
+                                    } else {
+                                      calcNotifier.updateReps(exercise.reps);
+                                    }
                                   },
                           ),
                         ],
@@ -887,7 +967,9 @@ class CalculatorScreen extends ConsumerWidget {
                 );
               },
             ),
-          ),
+          );
+        },
+      ),
           const SizedBox(height: 8),
 
           // Slide indicator dots
@@ -1167,26 +1249,11 @@ class RestTimerDialog extends StatefulWidget {
 class _RestTimerDialogState extends State<RestTimerDialog> {
   late int _secondsRemaining;
   Timer? _timer;
-  AudioPlayer? _audioPlayer;
 
   @override
   void initState() {
     super.initState();
     _secondsRemaining = widget.initialSeconds;
-
-    if (widget.enableBeep) {
-      try {
-        _audioPlayer = AudioPlayer();
-        _audioPlayer?.setVolume(1.0).catchError((e) {
-          debugPrint("AudioPlayer initialization error: $e");
-          return null;
-        });
-      } catch (e) {
-        debugPrint("AudioPlayer creation error: $e");
-        _audioPlayer = null;
-      }
-    }
-
     _startTimer();
   }
 
@@ -1207,32 +1274,9 @@ class _RestTimerDialogState extends State<RestTimerDialog> {
     });
   }
 
-  void _playBeep() async {
+  void _playBeep() {
     if (!widget.enableBeep) return;
-
-    String url;
-    switch (widget.selectedBeepSound) {
-      case 2:
-        url = 'https://www.soundjay.com/buttons/sounds/button-3.mp3';
-        break;
-      case 3:
-        url = 'https://www.soundjay.com/buttons/sounds/button-10.mp3';
-        break;
-      case 1:
-      default:
-        url = 'https://www.soundjay.com/buttons/sounds/button-09.mp3';
-        break;
-    }
-
-    try {
-      if (_audioPlayer != null) {
-        await _audioPlayer!.play(UrlSource(url));
-      } else {
-        _fallbackBeep();
-      }
-    } catch (_) {
-      _fallbackBeep();
-    }
+    _fallbackBeep();
   }
 
   void _fallbackBeep() {
@@ -1286,9 +1330,6 @@ class _RestTimerDialogState extends State<RestTimerDialog> {
   @override
   void dispose() {
     _timer?.cancel();
-    try {
-      _audioPlayer?.dispose();
-    } catch (_) {}
     super.dispose();
   }
 
