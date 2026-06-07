@@ -1,9 +1,12 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:file_picker/file_picker.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../settings/state/settings_notifier.dart';
+import 'avatar_helper.dart';
 
 class ProfileOnboardingScreen extends ConsumerStatefulWidget {
   const ProfileOnboardingScreen({super.key});
@@ -29,6 +32,8 @@ class _ProfileOnboardingScreenState
   // Selecciones
   String? _selectedGoal; // 'muscle', 'fat_loss', 'strength', 'endurance', 'health'
   String _weightUnit = 'kg';
+  DateTime? _birthDate;
+  String _profileImagePath = '';
 
   // Animación
   late AnimationController _fadeController;
@@ -48,6 +53,7 @@ class _ProfileOnboardingScreenState
 
     final settings = ref.read(settingsProvider);
     _weightUnit = settings.weightUnit;
+    _profileImagePath = settings.profileImagePath;
 
     // Pre-fill existing data
     if (settings.userName.isNotEmpty) {
@@ -55,6 +61,7 @@ class _ProfileOnboardingScreenState
     }
     if (settings.userAge > 0) {
       _ageController.text = settings.userAge.toString();
+      _birthDate = DateTime(DateTime.now().year - settings.userAge, 1, 1);
     }
     if (settings.userHeight > 0) {
       _heightController.text = settings.userHeight.toStringAsFixed(1);
@@ -153,6 +160,7 @@ class _ProfileOnboardingScreenState
   void _finish() {
     final notifier = ref.read(settingsProvider.notifier);
     notifier.setUserName(_nameController.text.trim());
+    notifier.setProfileImagePath(_profileImagePath);
     final age = int.tryParse(_ageController.text.trim()) ?? 0;
     notifier.setUserAge(age);
     final h = double.tryParse(_heightController.text.replaceAll(',', '.')) ?? 0;
@@ -178,33 +186,215 @@ class _ProfileOnboardingScreenState
   //  PASOS
   // ────────────────────────────────────────────────
 
+  Future<void> _pickProfileImage() async {
+    try {
+      final result = await FilePicker.pickFiles(
+        type: FileType.image,
+        allowMultiple: false,
+      );
+      if (result != null && result.files.single.path != null) {
+        setState(() {
+          _profileImagePath = result.files.single.path!;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No se pudo abrir el selector del sistema. Selecciona un avatar.'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
   Widget _stepName() {
     return _StepWrapper(
       icon: Icons.person_outline_rounded,
       title: '¿Cómo te llamas?',
       subtitle: 'Tu nombre personaliza toda la experiencia.',
-      child: _buildTextField(
-        controller: _nameController,
-        hint: 'Tu nombre o apodo',
-        autofocus: true,
-        textCapitalization: TextCapitalization.words,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildTextField(
+            controller: _nameController,
+            hint: 'Tu nombre o apodo',
+            autofocus: true,
+            textCapitalization: TextCapitalization.words,
+          ),
+          const SizedBox(height: 24),
+          Text(
+            'FOTO DE PERFIL (OPCIONAL)',
+            style: GoogleFonts.spaceGrotesk(
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              color: AppTheme.voltYellow,
+              letterSpacing: 1.2,
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 70,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              children: [
+                // Botón subir propia imagen
+                GestureDetector(
+                  onTap: _pickProfileImage,
+                  child: Container(
+                    width: 60,
+                    height: 60,
+                    margin: const EdgeInsets.only(right: 12),
+                    decoration: BoxDecoration(
+                      color: AppTheme.midnightGrey,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: _profileImagePath.isNotEmpty && !_profileImagePath.startsWith('avatar:')
+                            ? AppTheme.voltYellow
+                            : AppTheme.dividerColor,
+                        width: _profileImagePath.isNotEmpty && !_profileImagePath.startsWith('avatar:') ? 2.0 : 1.0,
+                      ),
+                    ),
+                    child: ClipOval(
+                      child: _profileImagePath.isNotEmpty && !_profileImagePath.startsWith('avatar:')
+                          ? buildAvatarWidget(path: _profileImagePath, radius: 28, fallbackColor: Colors.white24)
+                          : const Icon(Icons.add_a_photo_rounded, color: Colors.white54, size: 20),
+                    ),
+                  ),
+                ),
+                // Avatars predeterminados
+                ...builtInAvatars.entries.map((entry) {
+                  final key = entry.key;
+                  final avatar = entry.value;
+                  final isSelected = _profileImagePath == key;
+                  return GestureDetector(
+                    onTap: () {
+                      setState(() {
+                        _profileImagePath = isSelected ? '' : key;
+                      });
+                    },
+                    child: Container(
+                      width: 60,
+                      height: 60,
+                      margin: const EdgeInsets.only(right: 12),
+                      decoration: BoxDecoration(
+                        color: avatar.bg,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: isSelected ? AppTheme.voltYellow : Colors.transparent,
+                          width: 2.0,
+                        ),
+                      ),
+                      child: Center(
+                        child: Icon(
+                          avatar.icon,
+                          color: avatar.color,
+                          size: 24,
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
 
 
+  int _calculateAge(DateTime birthDate) {
+    final today = DateTime.now();
+    int age = today.year - birthDate.year;
+    if (today.month < birthDate.month ||
+        (today.month == birthDate.month && today.day < birthDate.day)) {
+      age--;
+    }
+    return age;
+  }
+
+  Future<void> _selectBirthDate(BuildContext context) async {
+    final DateTime now = DateTime.now();
+    final DateTime initial = _birthDate ?? DateTime(now.year - 25, now.month, now.day);
+    final DateTime firstDate = DateTime(now.year - 100);
+    final DateTime lastDate = DateTime(now.year - 5);
+
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: firstDate,
+      lastDate: lastDate,
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.dark(
+              primary: AppTheme.voltYellow,
+              onPrimary: Colors.black,
+              surface: AppTheme.midnightGrey,
+              onSurface: Colors.white,
+            ),
+            dialogBackgroundColor: AppTheme.darkCarbon,
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      setState(() {
+        _birthDate = picked;
+        _ageController.text = _calculateAge(picked).toString();
+      });
+    }
+  }
+
   Widget _stepAge() {
+    final String ageText = _birthDate == null
+        ? 'Seleccionar'
+        : '${_calculateAge(_birthDate!)}';
+
     return _StepWrapper(
       icon: Icons.cake_outlined,
       title: '¿Cuántos años tienes?',
       subtitle: 'La edad influye en el cálculo de tu 1RM y métricas.',
-      child: _buildTextField(
-        controller: _ageController,
-        hint: 'Tu edad',
-        keyboardType: TextInputType.number,
-        inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-        suffix: 'años',
-        autofocus: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          InkWell(
+            onTap: () => _selectBirthDate(context),
+            borderRadius: BorderRadius.circular(16),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+              decoration: BoxDecoration(
+                color: AppTheme.midnightGrey,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: _birthDate != null ? AppTheme.voltYellow : AppTheme.dividerColor,
+                  width: _birthDate != null ? 1.5 : 1.0,
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      ageText,
+                      style: GoogleFonts.outfit(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: _birthDate == null ? Colors.white24 : Colors.white,
+                      ),
+                    ),
+                  ),
+                  const Icon(Icons.cake_outlined, color: AppTheme.voltYellow),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -22,6 +22,7 @@ class SettingsState {
   final String geminiApiKey;
   final String onlineProvider; // 'gemini' or 'huggingface'
   final String huggingFaceToken;
+  final String profileImagePath;
   final bool profileSetupDone;
 
   final int minReps;
@@ -48,6 +49,7 @@ class SettingsState {
     required this.geminiApiKey,
     required this.onlineProvider,
     required this.huggingFaceToken,
+    required this.profileImagePath,
     required this.profileSetupDone,
   });
 
@@ -72,6 +74,7 @@ class SettingsState {
     String? geminiApiKey,
     String? onlineProvider,
     String? huggingFaceToken,
+    String? profileImagePath,
     bool? profileSetupDone,
   }) {
     return SettingsState(
@@ -95,6 +98,7 @@ class SettingsState {
       geminiApiKey: geminiApiKey ?? this.geminiApiKey,
       onlineProvider: onlineProvider ?? this.onlineProvider,
       huggingFaceToken: huggingFaceToken ?? this.huggingFaceToken,
+      profileImagePath: profileImagePath ?? this.profileImagePath,
       profileSetupDone: profileSetupDone ?? this.profileSetupDone,
     );
   }
@@ -122,6 +126,7 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
           geminiApiKey: _defaultApiKey,
           onlineProvider: 'gemini', // Default to gemini (Google key)
           huggingFaceToken: '',
+          profileImagePath: '',
           profileSetupDone: false,
         )) {
     _loadSettings();
@@ -148,6 +153,7 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
   static const String _keyOnlineProvider = 'settings_online_provider';
   static const String _keyHuggingFaceToken = 'settings_huggingface_token_obf';
   static const String _keyProfileSetupDone = 'settings_profile_setup_done';
+  static const String _keyProfileImagePath = 'settings_profile_image_path';
 
   static String get _defaultApiKey {
     const envKey = String.fromEnvironment('GEMINI_API_KEY');
@@ -204,7 +210,11 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
     final bool enableB = prefs.getBool(_keyEnableBeep) ?? true;
     final int beepS = prefs.getInt(_keyBeepSound) ?? 1;
     final int restT = prefs.getInt(_keyRestTime) ?? 90;
-    final String selRoutine = prefs.getString(_keySelectedRoutine) ?? '';
+    String selRoutine = prefs.getString(_keySelectedRoutine) ?? '';
+    if (selRoutine == 'default_arnold') {
+      selRoutine = 'default_arnold_split';
+    }
+    final String profileImg = prefs.getString(_keyProfileImagePath) ?? '';
     final String aiMode = 'online';
     final String geminiApiKeyObf = prefs.getString(_keyGeminiApiKey) ?? '';
     String geminiApiKey = geminiApiKeyObf.isNotEmpty 
@@ -243,6 +253,7 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
       geminiApiKey: geminiApiKey,
       onlineProvider: onlineProv,
       huggingFaceToken: hfToken,
+      profileImagePath: profileImg,
       profileSetupDone: profileDone,
     );
   }
@@ -308,6 +319,12 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
     state = state.copyWith(userName: userName.trim());
   }
 
+  Future<void> setProfileImagePath(String path) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyProfileImagePath, path.trim());
+    state = state.copyWith(profileImagePath: path.trim());
+  }
+
   Future<void> setUserAge(int userAge) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_keyUserAge, userAge);
@@ -340,8 +357,12 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
 
   Future<void> setSelectedRoutineId(String selectedRoutineId) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_keySelectedRoutine, selectedRoutineId.trim());
-    state = state.copyWith(selectedRoutineId: selectedRoutineId.trim());
+    String cleanId = selectedRoutineId.trim();
+    if (cleanId == 'default_arnold') {
+      cleanId = 'default_arnold_split';
+    }
+    await prefs.setString(_keySelectedRoutine, cleanId);
+    state = state.copyWith(selectedRoutineId: cleanId);
   }
 
   Future<void> setAiMode(String mode) async {

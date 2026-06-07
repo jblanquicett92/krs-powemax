@@ -1,12 +1,15 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:file_picker/file_picker.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/localization/app_localizations.dart';
 import '../../settings/state/settings_notifier.dart';
 import '../../settings/presentation/settings_screen.dart';
 import 'routines_screen.dart';
 import 'profile_onboarding_screen.dart';
+import 'avatar_helper.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -21,6 +24,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   late TextEditingController _weightController;
   late TextEditingController _ageController;
   late TextEditingController _goalController;
+  DateTime? _birthDate;
 
   String? _errorMsg;
 
@@ -41,6 +45,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     _goalController = TextEditingController(
       text: settings.userGoal,
     );
+    if (settings.userAge > 0) {
+      _birthDate = DateTime(DateTime.now().year - settings.userAge, 1, 1);
+    }
   }
 
   bool _onboardingShown = false;
@@ -115,6 +122,172 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     return (label: 'Obesidad', color: Colors.redAccent);
   }
 
+  int _calculateAge(DateTime birthDate) {
+    final today = DateTime.now();
+    int age = today.year - birthDate.year;
+    if (today.month < birthDate.month ||
+        (today.month == birthDate.month && today.day < birthDate.day)) {
+      age--;
+    }
+    return age;
+  }
+
+  Future<void> _selectBirthDate(BuildContext context) async {
+    final DateTime now = DateTime.now();
+    final DateTime initial = _birthDate ?? DateTime(now.year - 25, now.month, now.day);
+    final DateTime firstDate = DateTime(now.year - 100);
+    final DateTime lastDate = DateTime(now.year - 5);
+
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: firstDate,
+      lastDate: lastDate,
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.dark(
+              primary: AppTheme.voltYellow,
+              onPrimary: Colors.black,
+              surface: AppTheme.midnightGrey,
+              onSurface: Colors.white,
+            ),
+            dialogBackgroundColor: AppTheme.darkCarbon,
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      setState(() {
+        _birthDate = picked;
+        _ageController.text = _calculateAge(picked).toString();
+      });
+    }
+  }
+
+  Future<void> _pickProfileImage() async {
+    try {
+      final result = await FilePicker.pickFiles(
+        type: FileType.image,
+        allowMultiple: false,
+      );
+      if (result != null && result.files.single.path != null) {
+        final path = result.files.single.path!;
+        await ref.read(settingsProvider.notifier).setProfileImagePath(path);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Error al seleccionar la imagen')),
+        );
+      }
+    }
+  }
+
+  void _showPhotoOptions() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppTheme.darkCarbon,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return Consumer(
+          builder: (context, ref, child) {
+            final settings = ref.watch(settingsProvider);
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ListTile(
+                      leading: const Icon(Icons.photo_library_rounded, color: AppTheme.voltYellow),
+                      title: Text(
+                        'Seleccionar de la galería',
+                        style: GoogleFonts.spaceGrotesk(color: Colors.white),
+                      ),
+                      onTap: () {
+                        Navigator.pop(context);
+                        _pickProfileImage();
+                      },
+                    ),
+                    if (settings.profileImagePath.isNotEmpty)
+                      ListTile(
+                        leading: const Icon(Icons.delete_rounded, color: Colors.redAccent),
+                        title: Text(
+                          'Eliminar foto de perfil',
+                          style: GoogleFonts.spaceGrotesk(color: Colors.redAccent),
+                        ),
+                        onTap: () async {
+                          Navigator.pop(context);
+                          await ref.read(settingsProvider.notifier).setProfileImagePath('');
+                        },
+                      ),
+                    const Divider(color: AppTheme.dividerColor),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                      child: Text(
+                        'O ELIGE UN AVATAR FITNESS:',
+                        style: GoogleFonts.spaceGrotesk(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.voltYellow,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                    ),
+                    SizedBox(
+                      height: 70,
+                      child: ListView(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                        children: builtInAvatars.entries.map((entry) {
+                          final key = entry.key;
+                          final avatar = entry.value;
+                          final isSelected = settings.profileImagePath == key;
+                          return GestureDetector(
+                            onTap: () async {
+                              Navigator.pop(context);
+                              await ref.read(settingsProvider.notifier).setProfileImagePath(isSelected ? '' : key);
+                            },
+                            child: Container(
+                              width: 55,
+                              height: 55,
+                              margin: const EdgeInsets.only(right: 12),
+                              decoration: BoxDecoration(
+                                color: avatar.bg,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: isSelected ? AppTheme.voltYellow : Colors.transparent,
+                                  width: 2.0,
+                                ),
+                              ),
+                              child: Center(
+                                child: Icon(
+                                  avatar.icon,
+                                  color: avatar.color,
+                                  size: 22,
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   void _saveProfile() {
     final name = _nameController.text.trim();
     final double? height = double.tryParse(_heightController.text.replaceAll(',', '.'));
@@ -175,6 +348,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       }
       if (_ageController.text.isEmpty && next.userAge > 0) {
         _ageController.text = next.userAge.toString();
+        _birthDate = DateTime(DateTime.now().year - next.userAge, 1, 1);
       }
       if (_goalController.text.isEmpty && next.userGoal.isNotEmpty) {
         _goalController.text = next.userGoal;
@@ -301,13 +475,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     // Avatar + edit button
                     Stack(
                       children: [
-                        CircleAvatar(
-                          radius: 36,
-                          backgroundColor: bmiCat.color.withOpacity(0.12),
-                          child: Icon(
-                            Icons.person,
-                            size: 40,
-                            color: bmiCat.color,
+                        GestureDetector(
+                          onTap: _showPhotoOptions,
+                          child: buildAvatarWidget(
+                            path: settings.profileImagePath,
+                            radius: 36,
+                            fallbackColor: bmiCat.color,
                           ),
                         ),
                         Positioned(
@@ -621,25 +794,31 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                 ),
                               ),
                               const SizedBox(height: 6),
-                              TextField(
-                                controller: _ageController,
-                                keyboardType: TextInputType.number,
-                                style: GoogleFonts.spaceGrotesk(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                ),
-                                decoration: InputDecoration(
-                                  suffixText: 'años',
-                                  suffixStyle: const TextStyle(color: Colors.white38, fontSize: 12),
-                                  contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
-                                  enabledBorder: OutlineInputBorder(
+                              InkWell(
+                                onTap: () => _selectBirthDate(context),
+                                borderRadius: BorderRadius.circular(12),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+                                  decoration: BoxDecoration(
                                     borderRadius: BorderRadius.circular(12),
-                                    borderSide: const BorderSide(color: AppTheme.dividerColor),
+                                    border: Border.all(color: AppTheme.dividerColor),
+                                    color: Colors.transparent,
                                   ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: const BorderSide(color: Colors.white54),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        _ageController.text.isNotEmpty
+                                            ? _ageController.text
+                                            : 'Seleccionar',
+                                        style: GoogleFonts.spaceGrotesk(
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.bold,
+                                          color: _ageController.text.isEmpty ? Colors.white38 : Colors.white,
+                                        ),
+                                      ),
+                                      const Icon(Icons.cake_outlined, color: Colors.white38, size: 16),
+                                    ],
                                   ),
                                 ),
                               ),

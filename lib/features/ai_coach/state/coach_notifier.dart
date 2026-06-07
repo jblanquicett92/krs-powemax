@@ -8,6 +8,7 @@ import '../../settings/state/settings_notifier.dart';
 import '../../history/state/history_notifier.dart';
 import '../../history/data/workout_record.dart';
 import 'package:system_info_plus/system_info_plus.dart';
+import '../../profile/state/routines_notifier.dart';
 
 
 class ChatMessage {
@@ -316,7 +317,19 @@ class CoachNotifier extends StateNotifier<CoachState> {
       profileInfo += " El usuario no ha completado sus datos de perfil (nombre, edad, peso, altura u objetivo) en la pestaña de perfil/ajustes. Sugiérele o solicítale sutilmente y con tacto, cuando sea natural en la conversación, que complete su perfil para poder calcular su IMC (Índice de Masa Corporal) y personalizar mucho mejor sus entrenamientos.";
     }
 
-    String systemPrompt = coachInstruction + profileInfo;
+    final routines = ref.read(routinesProvider);
+    String routinesContext = "";
+    if (routines.isNotEmpty) {
+      routinesContext = " Rutinas configuradas del usuario:\n" +
+          routines.map((r) {
+            final exList = r.exercises.map((e) => "- ${e.name} (${e.sets}x${e.reps}, Grupo: ${e.dayGroup})").join("\n");
+            return "Rutina '${r.name}' (ID: '${r.id}'):\n$exList";
+          }).join("\n\n");
+    } else {
+      routinesContext = " El usuario no tiene rutinas configuradas en la pestaña de rutinas.";
+    }
+
+    String systemPrompt = coachInstruction + profileInfo + "\n\n" + routinesContext + "\n\n";
     if (state.activeExercise != 'General') {
       final last3 = _getLast3Records(state.activeExercise);
       String historyContext = "";
@@ -331,6 +344,8 @@ class CoachNotifier extends StateNotifier<CoachState> {
     } else {
       systemPrompt += " 1RM general del usuario: $r1rm $unit (basado en ${calcState.weight} ${unit} x ${calcState.reps} reps).";
     }
+
+    systemPrompt += " INSTRUCCIÓN CRÍTICA DE INTERACCIÓN: Si recomiendas o sugieres una rutina de las configuradas del usuario, debes incluir obligatoriamente al final de tu mensaje el enlace interactivo con el formato exacto `[Activar rutina: NOMBRE](routine://select?id=ID)` (sustituyendo NOMBRE por el nombre exacto de la rutina y ID por el ID exacto correspondiente de la lista proporcionada, por ejemplo: `default_arnold_split` o `default_push_pull`). No agregues enlaces para ejercicios individuales.";
 
     systemPrompt += " REGLAS DE FORMATO: No uses emojis en ninguna respuesta. Usa formato Markdown (negrita, listas, encabezados) para estructurar el texto cuando sea útil, pero nunca emojis.";
 

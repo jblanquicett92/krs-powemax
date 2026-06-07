@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/localization/app_localizations.dart';
 import '../state/settings_notifier.dart';
+import '../../../core/constants/version.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -33,30 +34,7 @@ class SettingsScreen extends ConsumerWidget {
             _buildSectionHeader(context, "Preferencias Generales"),
             const SizedBox(height: 8),
 
-            // Selector de Idioma
-            _buildSettingTile(
-              context,
-              icon: Icons.language,
-              title: context.tr('settings_language', ref),
-              trailing: DropdownButton<String>(
-                value: settings.language,
-                dropdownColor: AppTheme.midnightGrey,
-                style: GoogleFonts.spaceGrotesk(color: Colors.white, fontSize: 14),
-                underline: const SizedBox.shrink(),
-                items: const [
-                  DropdownMenuItem(value: 'es', child: Text("Español (ES)")),
-                  DropdownMenuItem(value: 'en', child: Text("English (EN)")),
-                  DropdownMenuItem(value: 'pt', child: Text("Português (PT)")),
-                ],
-                onChanged: (val) {
-                  if (val != null) {
-                    settingsNotifier.setLanguage(val, ref);
-                    _showSuccessSnackBar(context, "Idioma actualizado");
-                  }
-                },
-              ),
-            ),
-            const SizedBox(height: 10),
+
 
             // Selector de Unidades
             _buildSettingTile(
@@ -188,31 +166,42 @@ class SettingsScreen extends ConsumerWidget {
                 children: [
                   Row(
                     children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: AppTheme.voltYellow.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Icon(Icons.bolt, color: AppTheme.voltYellow, size: 24),
+                      Image.asset(
+                        'assets/logo_no_background.png',
+                        width: 40,
+                        height: 40,
+                        fit: BoxFit.contain,
                       ),
                       const SizedBox(width: 12),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            "PowerMax 1RM",
-                            style: GoogleFonts.outfit(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "PowerMax 1RM",
+                              style: GoogleFonts.outfit(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
                             ),
-                          ),
-                          const Text(
-                            "Versión 1.0.0",
-                            style: TextStyle(fontSize: 11, color: Colors.white38),
-                          ),
-                        ],
+                            ref.watch(appVersionProvider).when(
+                              data: (version) => Text(
+                                "Versión $version",
+                                style: const TextStyle(fontSize: 11, color: Colors.white38),
+                              ),
+                              loading: () => const Text(
+                                "Versión ...",
+                                style: TextStyle(fontSize: 11, color: Colors.white38),
+                              ),
+                              error: (err, __) => Text(
+                                "Versión no disponible ($err)",
+                                style: const TextStyle(fontSize: 11, color: Colors.redAccent),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
@@ -223,6 +212,38 @@ class SettingsScreen extends ConsumerWidget {
                       fontSize: 13,
                       height: 1.4,
                       color: AppTheme.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  const Divider(color: AppTheme.dividerColor),
+                  const SizedBox(height: 8),
+                  InkWell(
+                    onTap: () async {
+                      final url = Uri.parse('https://koresis.com/');
+                      if (await canLaunchUrl(url)) {
+                        await launchUrl(url, mode: LaunchMode.externalApplication);
+                      }
+                    },
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 2.0),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.code_rounded, color: AppTheme.voltYellow, size: 16),
+                          const SizedBox(width: 8),
+                          Text(
+                            "Desarrollado por Koresis",
+                            style: GoogleFonts.spaceGrotesk(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: AppTheme.voltYellow,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          const Icon(Icons.open_in_new_rounded, color: AppTheme.voltYellow, size: 12),
+                        ],
+                      ),
                     ),
                   ),
                 ],

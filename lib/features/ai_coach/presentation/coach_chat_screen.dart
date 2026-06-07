@@ -7,6 +7,8 @@ import '../state/coach_notifier.dart';
 import '../../settings/state/settings_notifier.dart';
 import '../../history/state/history_notifier.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import '../../calculator/presentation/calculator_screen.dart';
+import '../../profile/state/routines_notifier.dart';
 
 class CoachChatScreen extends ConsumerStatefulWidget {
   const CoachChatScreen({super.key});
@@ -215,7 +217,7 @@ class _CoachChatScreenState extends ConsumerState<CoachChatScreen> {
             itemCount: state.messages.length,
             itemBuilder: (context, index) {
               final msg = state.messages[index];
-              return _buildMessageBubble(msg, state.selectedCoach);
+              return _buildMessageBubble(msg, state.selectedCoach, isLast: index == state.messages.length - 1);
             },
           ),
         ),
@@ -291,7 +293,7 @@ class _CoachChatScreenState extends ConsumerState<CoachChatScreen> {
   }
 
   // Burbuja de chat premium con acoplamiento dinámico de color según el entrenador
-  Widget _buildMessageBubble(ChatMessage msg, String selectedCoach) {
+  Widget _buildMessageBubble(ChatMessage msg, String selectedCoach, {bool isLast = false}) {
     Color coachColor = AppTheme.electricCyan;
     if (selectedCoach == 'cristian') {
       coachColor = AppTheme.voltYellow;
@@ -330,79 +332,182 @@ class _CoachChatScreenState extends ConsumerState<CoachChatScreen> {
                   color: AppTheme.voltYellow,
                 ),
               )
-            : MarkdownBody(
-                data: msg.text,
-                styleSheet: MarkdownStyleSheet(
-                  p: GoogleFonts.spaceGrotesk(
-                    fontSize: 14.5,
-                    height: 1.5,
-                    color: const Color(0xffe8e8e8),
-                  ),
-                  strong: GoogleFonts.spaceGrotesk(
-                    fontSize: 14.5,
-                    height: 1.5,
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  em: GoogleFonts.spaceGrotesk(
-                    fontSize: 14.5,
-                    height: 1.5,
-                    color: const Color(0xffe8e8e8),
-                    fontStyle: FontStyle.italic,
-                  ),
-                  h1: GoogleFonts.outfit(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: coachColor,
-                  ),
-                  h2: GoogleFonts.outfit(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: coachColor,
-                  ),
-                  h3: GoogleFonts.outfit(
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                  listBullet: GoogleFonts.spaceGrotesk(
-                    fontSize: 14.5,
-                    height: 1.5,
-                    color: const Color(0xffe8e8e8),
-                  ),
-                  blockquote: GoogleFonts.spaceGrotesk(
-                    fontSize: 14,
-                    height: 1.5,
-                    color: Colors.white60,
-                    fontStyle: FontStyle.italic,
-                  ),
-                  blockquoteDecoration: BoxDecoration(
-                    color: coachColor.withOpacity(0.05),
-                    border: Border(
-                      left: BorderSide(color: coachColor, width: 3),
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  MarkdownBody(
+                    data: _cleanMarkdownText(msg.text),
+                    styleSheet: MarkdownStyleSheet(
+                      p: GoogleFonts.spaceGrotesk(
+                        fontSize: 14.5,
+                        height: 1.5,
+                        color: const Color(0xffe8e8e8),
+                      ),
+                      strong: GoogleFonts.spaceGrotesk(
+                        fontSize: 14.5,
+                        height: 1.5,
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      em: GoogleFonts.spaceGrotesk(
+                        fontSize: 14.5,
+                        height: 1.5,
+                        color: const Color(0xffe8e8e8),
+                        fontStyle: FontStyle.italic,
+                      ),
+                      h1: GoogleFonts.outfit(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: coachColor,
+                      ),
+                      h2: GoogleFonts.outfit(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: coachColor,
+                      ),
+                      h3: GoogleFonts.outfit(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                      listBullet: GoogleFonts.spaceGrotesk(
+                        fontSize: 14.5,
+                        height: 1.5,
+                        color: const Color(0xffe8e8e8),
+                      ),
+                      blockquote: GoogleFonts.spaceGrotesk(
+                        fontSize: 14,
+                        height: 1.5,
+                        color: Colors.white60,
+                        fontStyle: FontStyle.italic,
+                      ),
+                      blockquoteDecoration: BoxDecoration(
+                        color: coachColor.withOpacity(0.05),
+                        border: Border(
+                          left: BorderSide(color: coachColor, width: 3),
+                        ),
+                      ),
+                      code: GoogleFonts.spaceGrotesk(
+                        fontSize: 13,
+                        color: coachColor,
+                        backgroundColor: Colors.transparent,
+                      ),
+                      codeblockDecoration: BoxDecoration(
+                        color: AppTheme.midnightGrey,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                            color: coachColor.withOpacity(0.3)),
+                      ),
+                      horizontalRuleDecoration: BoxDecoration(
+                        border: Border(
+                          top: BorderSide(
+                              color: AppTheme.dividerColor, width: 1),
+                        ),
+                      ),
                     ),
+                    onTapLink: (text, href, title) {
+                      if (href != null) {
+                        if (href.startsWith('routine://select?id=')) {
+                          final rawId = href.replaceFirst('routine://select?id=', '');
+                          var id = Uri.decodeComponent(rawId.trim());
+                          if (id == 'default_arnold') {
+                            id = 'default_arnold_split';
+                          }
+                          ref.read(settingsProvider.notifier).setSelectedRoutineId(id);
+                          
+                          final routines = ref.read(routinesProvider);
+                          final rName = routines.any((r) => r.id == id)
+                              ? routines.firstWhere((r) => r.id == id).name
+                              : 'Rutina';
+                          
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Rutina "$rName" seleccionada e iniciada'),
+                              backgroundColor: AppTheme.voltYellow,
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        } else if (href.startsWith('exercise://select?name=')) {
+                          final name = Uri.decodeComponent(href.replaceFirst('exercise://select?name=', ''));
+                          ref.read(currentExerciseNameProvider.notifier).state = name;
+                          
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Ejercicio "$name" seleccionado como activo'),
+                              backgroundColor: AppTheme.electricCyan,
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        }
+                      }
+                    },
                   ),
-                  code: GoogleFonts.spaceGrotesk(
-                    fontSize: 13,
-                    color: coachColor,
-                    backgroundColor: Colors.transparent,
-                  ),
-                  codeblockDecoration: BoxDecoration(
-                    color: AppTheme.midnightGrey,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                        color: coachColor.withOpacity(0.3)),
-                  ),
-                  horizontalRuleDecoration: BoxDecoration(
-                    border: Border(
-                      top: BorderSide(
-                          color: AppTheme.dividerColor, width: 1),
-                    ),
-                  ),
-                ),
+                  if (isLast) ..._buildRoutineCtaButtons(msg.text),
+                ],
               ),
       ),
     );
+  }
+
+  List<Widget> _buildRoutineCtaButtons(String text) {
+    final RegExp regExp = RegExp(r'routine://select\?id=([a-zA-Z0-9_\-%\s]+)');
+    final match = regExp.firstMatch(text);
+    if (match == null) return [];
+
+    final rawId = match.group(1);
+    if (rawId == null) return [];
+    var id = Uri.decodeComponent(rawId.trim());
+    if (id == 'default_arnold') {
+      id = 'default_arnold_split';
+    }
+
+    final routines = ref.read(routinesProvider);
+    final rName = routines.any((r) => r.id == id)
+        ? routines.firstWhere((r) => r.id == id).name
+        : 'Rutina';
+
+    return [
+      Padding(
+        padding: const EdgeInsets.only(top: 12.0),
+        child: SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.voltYellow,
+              foregroundColor: Colors.black,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              padding: const EdgeInsets.symmetric(vertical: 12),
+            ),
+            onPressed: () {
+              ref.read(settingsProvider.notifier).setSelectedRoutineId(id);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Rutina "$rName" seleccionada e iniciada'),
+                  backgroundColor: AppTheme.voltYellow,
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            },
+            icon: const Icon(Icons.play_arrow_rounded, color: Colors.black),
+            label: Text(
+              'Empezar Rutina: $rName',
+              style: GoogleFonts.spaceGrotesk(
+                fontWeight: FontWeight.bold,
+                fontSize: 13.5,
+              ),
+            ),
+          ),
+        ),
+      ),
+    ];
+  }
+
+  String _cleanMarkdownText(String text) {
+    final RegExp regExp = RegExp(r'\[Activar rutina:\s*[^\]]+\]\(routine://select\?id=[a-zA-Z0-9_\-%\s]+\)');
+    return text.replaceAll(regExp, '').replaceAll(RegExp(r'\n{3,}'), '\n\n').trim();
   }
 
   void _handleSendMessage(String text, CoachNotifier notifier) {

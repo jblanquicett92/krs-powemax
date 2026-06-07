@@ -8,6 +8,7 @@ import '../state/calculator_notifier.dart';
 import '../../profile/state/routines_notifier.dart';
 import '../../profile/data/routine.dart';
 import '../../profile/presentation/routines_screen.dart';
+import '../../profile/presentation/avatar_helper.dart';
 import '../../history/data/workout_record.dart';
 import '../../history/state/history_notifier.dart';
 import 'dart:async';
@@ -51,6 +52,16 @@ class CalculatorScreen extends ConsumerWidget {
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 16.0),
+            child: buildAvatarWidget(
+              path: settings.profileImagePath,
+              radius: 18,
+              fallbackColor: AppTheme.voltYellow,
+            ),
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
@@ -982,207 +993,284 @@ class CalculatorScreen extends ConsumerWidget {
                   final effectiveReps = sessionOverride?.reps ?? exercise.reps;
                   final isCompleted = todayExRecords.length >= effectiveSets;
 
-                  return GestureDetector(
-                    key: ValueKey('calc_ex_${exercise.name}_$exIdx'),
-                    onTap: isCompleted
-                        ? null
-                        : () {
-                            // Seleccionar o deseleccionar
-                            if (isSelected) {
-                              ref.read(currentExerciseNameProvider.notifier).state = null;
-                            } else {
-                              ref.read(currentExerciseNameProvider.notifier).state = exercise.name;
-                              final historyList = ref.read(historyProvider);
-                              final exRecords = historyList.where((r) =>
-                                  r.exerciseName.trim().toLowerCase() ==
-                                  exercise.name.trim().toLowerCase());
-                              if (exRecords.isNotEmpty) {
-                                calcNotifier.updateWeight(exRecords.first.weight);
-                                calcNotifier.updateReps(exRecords.first.reps);
-                              } else {
-                                calcNotifier.updateReps(effectiveReps);
-                              }
-                            }
-                          },
-                    onLongPress: () => _showSessionEditDialog(
-                      context,
-                      ref,
-                      exercise,
-                      effectiveSets,
-                      effectiveReps,
-                    ),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
+                  return Dismissible(
+                    key: ValueKey('dismiss_calc_ex_${exercise.name}_$exIdx'),
+                    direction: DismissDirection.endToStart,
+                    background: Container(
+                      alignment: Alignment.centerRight,
+                      padding: const EdgeInsets.only(right: 20),
                       margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                       decoration: BoxDecoration(
-                        color: isSelected
-                            ? AppTheme.voltYellow.withOpacity(0.06)
-                            : isCompleted
-                                ? Colors.green.withOpacity(0.04)
-                                : AppTheme.darkCarbon,
+                        color: Colors.redAccent.withOpacity(0.2),
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: isSelected
-                              ? AppTheme.voltYellow
-                              : isCompleted
-                                  ? Colors.green.withOpacity(0.3)
-                                  : AppTheme.dividerColor,
-                          width: isSelected ? 1.5 : 0.5,
-                        ),
                       ),
-                      child: Row(
-                        children: [
-                          // Drag handle
-                          ReorderableDragStartListener(
-                            index: exIdx,
-                            child: const Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 4.0, vertical: 4.0),
-                              child: Icon(
-                                Icons.drag_indicator,
-                                size: 18,
-                                color: Colors.white24,
+                      child: const Icon(Icons.delete_sweep_rounded, color: Colors.redAccent),
+                    ),
+                    confirmDismiss: (direction) async {
+                      return await showDialog<bool>(
+                        context: context,
+                        builder: (ctx) {
+                          return AlertDialog(
+                            backgroundColor: AppTheme.midnightGrey,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                              side: const BorderSide(color: AppTheme.dividerColor),
+                            ),
+                            title: Text(
+                              "¿Quitar ejercicio?",
+                              style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold),
+                            ),
+                            content: Text(
+                              "¿Realmente deseas eliminar '${exercise.name}' de este día de la rutina?",
+                              style: const TextStyle(color: Colors.white70),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx, false),
+                                child: const Text("Cancelar", style: TextStyle(color: Colors.white60)),
+                              ),
+                              ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.redAccent,
+                                ),
+                                onPressed: () => Navigator.pop(ctx, true),
+                                child: const Text("Quitar", style: TextStyle(color: Colors.white)),
+                              ),
+                            ],
+                          );
+                        },
+                      ) ?? false;
+                    },
+                    onDismissed: (direction) {
+                      final isExtra = extraExercises.any((e) => e.name == exercise.name);
+                      if (isExtra) {
+                        final extras = Map<String, List<RoutineExercise>>.from(ref.read(sessionExtraExercisesProvider));
+                        final dayList = List<RoutineExercise>.from(extras[day] ?? []);
+                        dayList.removeWhere((e) => e.name == exercise.name);
+                        extras[day] = dayList;
+                        ref.read(sessionExtraExercisesProvider.notifier).state = extras;
+                      } else {
+                        ref.read(routinesProvider.notifier).removeExerciseFromRoutineForDay(
+                          selectedRoutine.id,
+                          exercise.name,
+                          day,
+                        );
+                      }
+                      
+                      if (ref.read(currentExerciseNameProvider) == exercise.name) {
+                        ref.read(currentExerciseNameProvider.notifier).state = null;
+                      }
+
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('"${exercise.name}" de la rutina hoy eliminado'),
+                          backgroundColor: Colors.redAccent,
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    },
+                    child: GestureDetector(
+                      key: ValueKey('calc_ex_${exercise.name}_$exIdx'),
+                      onTap: isCompleted
+                          ? null
+                          : () {
+                              // Seleccionar o deseleccionar
+                              if (isSelected) {
+                                ref.read(currentExerciseNameProvider.notifier).state = null;
+                              } else {
+                                ref.read(currentExerciseNameProvider.notifier).state = exercise.name;
+                                final historyList = ref.read(historyProvider);
+                                final exRecords = historyList.where((r) =>
+                                    r.exerciseName.trim().toLowerCase() ==
+                                    exercise.name.trim().toLowerCase());
+                                if (exRecords.isNotEmpty) {
+                                  calcNotifier.updateWeight(exRecords.first.weight);
+                                  calcNotifier.updateReps(exRecords.first.reps);
+                                } else {
+                                  calcNotifier.updateReps(effectiveReps);
+                                }
+                              }
+                            },
+                      onLongPress: () => _showSessionEditDialog(
+                        context,
+                        ref,
+                        exercise,
+                        effectiveSets,
+                        effectiveReps,
+                      ),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? AppTheme.voltYellow.withOpacity(0.06)
+                              : isCompleted
+                                  ? Colors.green.withOpacity(0.04)
+                                  : AppTheme.darkCarbon,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: isSelected
+                                ? AppTheme.voltYellow
+                                : isCompleted
+                                    ? Colors.green.withOpacity(0.3)
+                                    : AppTheme.dividerColor,
+                            width: isSelected ? 1.5 : 0.5,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            // Drag handle
+                            ReorderableDragStartListener(
+                              index: exIdx,
+                              child: const Padding(
+                                padding: EdgeInsets.symmetric(horizontal: 4.0, vertical: 4.0),
+                                child: Icon(
+                                  Icons.drag_indicator,
+                                  size: 18,
+                                  color: Colors.white24,
+                                ),
                               ),
                             ),
-                          ),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        exercise.name,
-                                        style: GoogleFonts.spaceGrotesk(
-                                          fontWeight: FontWeight.bold,
-                                          color: isCompleted
-                                              ? Colors.white38
-                                              : isSelected
-                                                  ? AppTheme.voltYellow
-                                                  : Colors.white,
-                                          fontSize: 13,
-                                          decoration: isCompleted ? TextDecoration.lineThrough : null,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 6),
-                                    // Badge sets×reps: muestra override si lo hay
-                                    GestureDetector(
-                                      onTap: () => _showSessionEditDialog(
-                                        context, ref, exercise, effectiveSets, effectiveReps),
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                                        decoration: BoxDecoration(
-                                          color: sessionOverride != null
-                                              ? AppTheme.electricCyan.withOpacity(0.12)
-                                              : isCompleted
-                                                  ? Colors.green.withOpacity(0.1)
-                                                  : AppTheme.voltYellow.withOpacity(0.1),
-                                          borderRadius: BorderRadius.circular(5),
-                                          border: Border.all(
-                                            color: sessionOverride != null
-                                                ? AppTheme.electricCyan.withOpacity(0.4)
-                                                : Colors.transparent,
-                                          ),
-                                        ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            if (sessionOverride != null)
-                                              const Padding(
-                                                padding: EdgeInsets.only(right: 3),
-                                                child: Icon(Icons.edit_rounded,
-                                                    size: 9, color: AppTheme.electricCyan),
-                                              ),
-                                            Text(
-                                              '${effectiveSets}×${effectiveReps}',
-                                              style: GoogleFonts.spaceGrotesk(
-                                                color: sessionOverride != null
-                                                    ? AppTheme.electricCyan
-                                                    : isCompleted
-                                                        ? Colors.green
-                                                        : AppTheme.voltYellow,
-                                                fontSize: 10,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 4),
-                                    // Botón cambiar ejercicio (solo si no completado)
-                                    if (!isCompleted)
-                                      GestureDetector(
-                                        onTap: () => _showSwapExerciseSheet(
-                                          context, ref, selectedRoutine, exercise, calcNotifier),
-                                        child: const Padding(
-                                          padding: EdgeInsets.all(4),
-                                          child: Icon(Icons.swap_horiz_rounded,
-                                              size: 16, color: Colors.white24),
-                                        ),
-                                      ),
-                                    // Indicador completado
-                                    if (isCompleted)
-                                      const Padding(
-                                        padding: EdgeInsets.only(left: 2),
-                                        child: Icon(Icons.check_circle,
-                                            size: 16, color: Colors.green),
-                                      ),
-                                  ],
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  latestRecord != null
-                                      ? '1RM Actual: ${latestRecord.oneRepMax.toStringAsFixed(1)} ${latestRecord.unit}'
-                                      : 'Sin 1RM registrado',
-                                  style: GoogleFonts.spaceGrotesk(
-                                    color: isCompleted
-                                        ? Colors.green.withOpacity(0.7)
-                                        : latestRecord != null
-                                            ? AppTheme.voltYellow
-                                            : Colors.white38,
-                                    fontSize: 11,
-                                  ),
-                                ),
-                                if (todayExRecords.isNotEmpty) ...[
-                                  const SizedBox(height: 6),
-                                  Wrap(
-                                    spacing: 4,
-                                    runSpacing: 4,
-                                    children: List.generate(todayExRecords.length, (idx) {
-                                      final r = todayExRecords[idx];
-                                      return Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color: isCompleted
-                                              ? Colors.green.withOpacity(0.1)
-                                              : AppTheme.voltYellow.withOpacity(0.12),
-                                          borderRadius: BorderRadius.circular(4),
-                                          border: Border.all(
-                                            color: isCompleted
-                                                ? Colors.green.withOpacity(0.3)
-                                                : AppTheme.voltYellow.withOpacity(0.3),
-                                            width: 0.5,
-                                          ),
-                                        ),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Expanded(
                                         child: Text(
-                                          '${r.weight.toStringAsFixed(0)}×${r.reps}  1RM: ${r.oneRepMax.toStringAsFixed(0)} ${r.unit}',
+                                          exercise.name,
                                           style: GoogleFonts.spaceGrotesk(
-                                            color: isCompleted ? Colors.green : AppTheme.voltYellow,
-                                            fontSize: 9,
                                             fontWeight: FontWeight.bold,
+                                            color: isCompleted
+                                                ? Colors.white38
+                                                : isSelected
+                                                    ? AppTheme.voltYellow
+                                                    : Colors.white,
+                                            fontSize: 13,
+                                            decoration: isCompleted ? TextDecoration.lineThrough : null,
                                           ),
                                         ),
-                                      );
-                                    }),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      // Badge sets×reps: muestra override si lo hay
+                                      GestureDetector(
+                                        onTap: () => _showSessionEditDialog(
+                                          context, ref, exercise, effectiveSets, effectiveReps),
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                                          decoration: BoxDecoration(
+                                            color: sessionOverride != null
+                                                ? AppTheme.electricCyan.withOpacity(0.12)
+                                                : isCompleted
+                                                    ? Colors.green.withOpacity(0.1)
+                                                    : AppTheme.voltYellow.withOpacity(0.1),
+                                            borderRadius: BorderRadius.circular(5),
+                                            border: Border.all(
+                                              color: sessionOverride != null
+                                                  ? AppTheme.electricCyan.withOpacity(0.4)
+                                                  : Colors.transparent,
+                                            ),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              if (sessionOverride != null)
+                                                const Padding(
+                                                  padding: EdgeInsets.only(right: 3),
+                                                  child: Icon(Icons.edit_rounded,
+                                                      size: 9, color: AppTheme.electricCyan),
+                                                ),
+                                              Text(
+                                                '${effectiveSets}×${effectiveReps}',
+                                                style: GoogleFonts.spaceGrotesk(
+                                                  color: sessionOverride != null
+                                                      ? AppTheme.electricCyan
+                                                      : isCompleted
+                                                          ? Colors.green
+                                                          : AppTheme.voltYellow,
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      // Botón cambiar ejercicio (solo si no completado)
+                                      if (!isCompleted)
+                                        GestureDetector(
+                                          onTap: () => _showSwapExerciseSheet(
+                                            context, ref, selectedRoutine, exercise, calcNotifier),
+                                          child: const Padding(
+                                            padding: EdgeInsets.all(4),
+                                            child: Icon(Icons.swap_horiz_rounded,
+                                                size: 16, color: Colors.white24),
+                                          ),
+                                        ),
+                                      // Indicador completado
+                                      if (isCompleted)
+                                        const Padding(
+                                          padding: EdgeInsets.only(left: 2),
+                                          child: Icon(Icons.check_circle,
+                                              size: 16, color: Colors.green),
+                                        ),
+                                    ],
                                   ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    latestRecord != null
+                                        ? '1RM Actual: ${latestRecord.oneRepMax.toStringAsFixed(1)} ${latestRecord.unit}'
+                                        : 'Sin 1RM registrado',
+                                    style: GoogleFonts.spaceGrotesk(
+                                      color: isCompleted
+                                          ? Colors.green.withOpacity(0.7)
+                                          : latestRecord != null
+                                              ? AppTheme.voltYellow
+                                              : Colors.white38,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                  if (todayExRecords.isNotEmpty) ...[
+                                    const SizedBox(height: 6),
+                                    Wrap(
+                                      spacing: 4,
+                                      runSpacing: 4,
+                                      children: List.generate(todayExRecords.length, (idx) {
+                                        final r = todayExRecords[idx];
+                                        return Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: isCompleted
+                                                ? Colors.green.withOpacity(0.1)
+                                                : AppTheme.voltYellow.withOpacity(0.12),
+                                            borderRadius: BorderRadius.circular(4),
+                                            border: Border.all(
+                                              color: isCompleted
+                                                  ? Colors.green.withOpacity(0.3)
+                                                  : AppTheme.voltYellow.withOpacity(0.3),
+                                              width: 0.5,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            '${r.weight.toStringAsFixed(0)}×${r.reps}  1RM: ${r.oneRepMax.toStringAsFixed(0)} ${r.unit}',
+                                            style: GoogleFonts.spaceGrotesk(
+                                              color: isCompleted ? Colors.green : AppTheme.voltYellow,
+                                              fontSize: 9,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        );
+                                      }),
+                                    ),
+                                  ],
                                 ],
-                              ],
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   );

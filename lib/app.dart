@@ -9,6 +9,7 @@ import 'features/history/presentation/history_screen.dart';
 import 'features/ai_coach/presentation/coach_chat_screen.dart';
 import 'features/settings/presentation/settings_screen.dart';
 import 'features/profile/presentation/profile_screen.dart';
+import 'features/splash/presentation/splash_screen.dart';
 
 class MyApp extends ConsumerWidget {
   const MyApp({super.key});
@@ -34,7 +35,7 @@ class MyApp extends ConsumerWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      home: const DashboardScreen(),
+      home: const SplashScreen(),
     );
   }
 }

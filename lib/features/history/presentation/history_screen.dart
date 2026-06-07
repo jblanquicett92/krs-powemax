@@ -10,6 +10,7 @@ import '../data/workout_record.dart';
 import '../../profile/state/routines_notifier.dart';
 import '../../profile/data/routine.dart';
 import '../../settings/state/settings_notifier.dart';
+import '../../profile/presentation/avatar_helper.dart';
 
 class HistoryScreen extends ConsumerStatefulWidget {
   const HistoryScreen({super.key});
@@ -66,6 +67,16 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 16.0),
+            child: buildAvatarWidget(
+              path: settings.profileImagePath,
+              radius: 18,
+              fallbackColor: AppTheme.voltYellow,
+            ),
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),

@@ -18,41 +18,37 @@ class RoutinesNotifier extends StateNotifier<List<Routine>> {
     final String? jsonStr = prefs.getString(_keyRoutines);
     final defaultRoutines = await _loadDefaultRoutinesFromJson();
 
+    List<Routine> routines;
     if (jsonStr == null) {
-      // Si no hay rutinas guardadas, cargamos las de prueba/por defecto
-      state = defaultRoutines;
-      await _saveToPrefs(defaultRoutines);
-      return;
-    }
+      routines = defaultRoutines;
+    } else {
+      try {
+        final List<dynamic> decoded = jsonDecode(jsonStr) as List<dynamic>;
+        routines = decoded
+            .map((item) => Routine.fromJson(item as Map<String, dynamic>))
+            .toList();
 
-    try {
-      final List<dynamic> decoded = jsonDecode(jsonStr) as List<dynamic>;
-      List<Routine> routines = decoded
-          .map((item) => Routine.fromJson(item as Map<String, dynamic>))
-          .toList();
-
-      // MIGRACIÓN / RESET: Siempre forzamos a que las rutinas por defecto se actualicen con el contenido del JSON
-      bool needsSave = false;
-
-      routines = routines.map((r) {
-        if (r.id == 'default_push_pull') {
-          needsSave = true;
-          return defaultRoutines.firstWhere((dr) => dr.id == 'default_push_pull');
-        }
-        if (r.id == 'default_arnold') {
-          needsSave = true;
-          return defaultRoutines.firstWhere((dr) => dr.id == 'default_arnold');
-        }
-        return r;
-      }).toList();
-
-      state = routines;
-      if (needsSave) {
-        await _saveToPrefs(routines);
+        // MIGRACIÓN / RESET: Siempre forzamos a que las rutinas por defecto se actualicen con el contenido del JSON
+        routines = routines.map((r) {
+          if (r.isDefault || r.id.startsWith('default_')) {
+            final targetId = r.id == 'default_arnold' ? 'default_arnold_split' : r.id;
+            final matchingDefault = defaultRoutines.firstWhere(
+              (dr) => dr.id == targetId,
+              orElse: () => r,
+            );
+            // Aseguramos que conserve isDefault como true
+            return matchingDefault.copyWith(isDefault: true);
+          }
+          return r;
+        }).toList();
+      } catch (e) {
+        routines = defaultRoutines;
       }
-    } catch (e) {
-      state = defaultRoutines;
     }
+
+    final synced = await _syncOrphanExercises(routines);
+    state = synced;
+    await _saveToPrefsRaw(synced);
   }
 
   Future<List<Routine>> _loadDefaultRoutinesFromJson() async {
@@ -113,7 +109,7 @@ class RoutinesNotifier extends StateNotifier<List<Routine>> {
           isDefault: true,
         ),
         Routine(
-          id: 'default_arnold',
+          id: 'default_arnold_split',
           name: 'Rutina Arnold Split',
           exercises: [
             RoutineExercise(name: 'Press de Banca', sets: 4, reps: 10, dayGroup: 'Día A (Pecho/Espalda)'),
@@ -133,10 +129,71 @@ class RoutinesNotifier extends StateNotifier<List<Routine>> {
     }
   }
 
-  Future<void> _saveToPrefs(List<Routine> routines) async {
+  Future<List<Routine>> _syncOrphanExercises(List<Routine> routines) async {
+    final prefs = await SharedPreferences.getInstance();
+    final String? recordsJsonStr = prefs.getString('workout_records_list');
+    final List<String> allHistoryExercises = [];
+    if (recordsJsonStr != null) {
+      try {
+        final decoded = jsonDecode(recordsJsonStr) as List<dynamic>;
+        for (var item in decoded) {
+          final name = (item as Map<String, dynamic>)['exerciseName'] as String?;
+          if (name != null && name.trim().isNotEmpty) {
+            allHistoryExercises.add(name.trim());
+          }
+        }
+      } catch (_) {}
+    }
+
+    final allRoutineExercises = routines
+        .where((r) => r.id != 'routine_others')
+        .expand((r) => r.exercises.map((e) => e.name.trim().toLowerCase()))
+        .toSet();
+
+    final orphanNames = allHistoryExercises
+        .where((e) => !allRoutineExercises.contains(e.toLowerCase()))
+        .toSet()
+        .toList();
+
+    final List<RoutineExercise> otherExercises = orphanNames.map((name) => RoutineExercise(
+      name: name,
+      sets: 4,
+      reps: 10,
+      dayGroup: 'Otros',
+    )).toList();
+
+    final List<Routine> updatedRoutines = List.from(routines);
+    final othersIndex = updatedRoutines.indexWhere((r) => r.id == 'routine_others');
+
+    if (othersIndex != -1) {
+      if (otherExercises.isEmpty) {
+        updatedRoutines.removeAt(othersIndex);
+      } else {
+        updatedRoutines[othersIndex] = updatedRoutines[othersIndex].copyWith(exercises: otherExercises);
+      }
+    } else if (otherExercises.isNotEmpty) {
+      updatedRoutines.add(Routine(
+        id: 'routine_others',
+        name: 'Otros',
+        exercises: otherExercises,
+        dateCreated: DateTime.now(),
+        isDefault: false,
+      ));
+    }
+
+    return updatedRoutines;
+  }
+
+  Future<void> _saveToPrefsRaw(List<Routine> routines) async {
     final prefs = await SharedPreferences.getInstance();
     final jsonStr = jsonEncode(routines.map((r) => r.toJson()).toList());
     await prefs.setString(_keyRoutines, jsonStr);
+  }
+
+  Future<void> _saveToPrefs(List<Routine> routines) async {
+    final synced = await _syncOrphanExercises(routines);
+    state = synced;
+    await _saveToPrefsRaw(synced);
   }
 
   Future<void> addRoutine(String name, List<RoutineExercise> exercises) async {
@@ -223,6 +280,18 @@ class RoutinesNotifier extends StateNotifier<List<Routine>> {
     state = state.map((routine) {
       if (routine.id == routineId) {
         final updatedExercises = routine.exercises.where((e) => e.name != exerciseName).toList();
+        return routine.copyWith(exercises: updatedExercises);
+      }
+      return routine;
+    }).toList();
+
+    await _saveToPrefs(state);
+  }
+
+  Future<void> removeExerciseFromRoutineForDay(String routineId, String exerciseName, String dayGroup) async {
+    state = state.map((routine) {
+      if (routine.id == routineId) {
+        final updatedExercises = routine.exercises.where((e) => !(e.name == exerciseName && e.dayGroup == dayGroup)).toList();
         return routine.copyWith(exercises: updatedExercises);
       }
       return routine;
