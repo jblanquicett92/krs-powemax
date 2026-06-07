@@ -160,6 +160,17 @@ class SettingsScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 22),
 
+            _buildSectionHeader(context, "Rango de Repeticiones"),
+            const SizedBox(height: 8),
+
+            _RepsRangeTile(
+              minReps: settings.minReps,
+              maxReps: settings.maxReps,
+              onMinChanged: (v) => settingsNotifier.setMinReps(v),
+              onMaxChanged: (v) => settingsNotifier.setMaxReps(v),
+            ),
+            const SizedBox(height: 22),
+
 
             // SECCIÓN 3: ACERCA DE LA APLICACIÓN
             _buildSectionHeader(context, context.tr('settings_about', ref)),
@@ -551,6 +562,225 @@ void _showSuccessSnackBar(BuildContext context, String message) {
       duration: const Duration(seconds: 2),
     ),
   );
+}
+
+// Widget aislado para editar el rango de repeticiones mínimo y máximo
+class _RepsRangeTile extends StatefulWidget {
+  final int minReps;
+  final int maxReps;
+  final ValueChanged<int> onMinChanged;
+  final ValueChanged<int> onMaxChanged;
+
+  const _RepsRangeTile({
+    required this.minReps,
+    required this.maxReps,
+    required this.onMinChanged,
+    required this.onMaxChanged,
+  });
+
+  @override
+  State<_RepsRangeTile> createState() => _RepsRangeTileState();
+}
+
+class _RepsRangeTileState extends State<_RepsRangeTile> {
+  late TextEditingController _minController;
+  late TextEditingController _maxController;
+  String? _errorMsg;
+
+  @override
+  void initState() {
+    super.initState();
+    _minController = TextEditingController(text: widget.minReps.toString());
+    _maxController = TextEditingController(text: widget.maxReps.toString());
+  }
+
+  @override
+  void didUpdateWidget(covariant _RepsRangeTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.minReps != widget.minReps) {
+      _minController.text = widget.minReps.toString();
+    }
+    if (oldWidget.maxReps != widget.maxReps) {
+      _maxController.text = widget.maxReps.toString();
+    }
+  }
+
+  @override
+  void dispose() {
+    _minController.dispose();
+    _maxController.dispose();
+    super.dispose();
+  }
+
+  void _validate() {
+    final int? minVal = int.tryParse(_minController.text);
+    final int? maxVal = int.tryParse(_maxController.text);
+
+    if (minVal == null || maxVal == null) {
+      setState(() => _errorMsg = 'Ingresa valores numéricos válidos.');
+      return;
+    }
+    if (minVal < 1) {
+      setState(() => _errorMsg = 'El mínimo no puede ser menor a 1.');
+      return;
+    }
+    if (maxVal <= minVal) {
+      setState(() => _errorMsg = 'El máximo debe ser mayor que el mínimo.');
+      return;
+    }
+    if (maxVal > 100) {
+      setState(() => _errorMsg = 'El máximo no puede superar 100.');
+      return;
+    }
+
+    setState(() => _errorMsg = null);
+    widget.onMinChanged(minVal);
+    widget.onMaxChanged(maxVal);
+    _showSuccessSnackBar(context, "Rango de repeticiones aplicado correctamente");
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.midnightGrey,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.dividerColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Descripción
+          Text(
+            'Define el rango del selector de repeticiones en la calculadora.',
+            style: GoogleFonts.spaceGrotesk(
+              fontSize: 12,
+              color: AppTheme.textSecondary,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // Fila de inputs
+          Row(
+            children: [
+              // Mínimo
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'MÍNIMO',
+                      style: GoogleFonts.spaceGrotesk(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.voltYellow,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: _minController,
+                      keyboardType: TextInputType.number,
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.spaceGrotesk(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                      decoration: InputDecoration(
+                        suffixText: 'reps',
+                        suffixStyle: const TextStyle(color: Colors.white38, fontSize: 10),
+                        contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(color: AppTheme.dividerColor),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(color: AppTheme.voltYellow),
+                        ),
+                      ),
+                      onSubmitted: (_) => _validate(),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 16),
+              // Máximo
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'MÁXIMO',
+                      style: GoogleFonts.spaceGrotesk(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.voltYellow,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: _maxController,
+                      keyboardType: TextInputType.number,
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.spaceGrotesk(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                      decoration: InputDecoration(
+                        suffixText: 'reps',
+                        suffixStyle: const TextStyle(color: Colors.white38, fontSize: 10),
+                        contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(color: AppTheme.dividerColor),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(color: AppTheme.voltYellow),
+                        ),
+                      ),
+                      onSubmitted: (_) => _validate(),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+
+          // Botón Aplicar + error
+          if (_errorMsg != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                _errorMsg!,
+                style: const TextStyle(color: Colors.redAccent, fontSize: 12),
+              ),
+            ),
+
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _validate,
+              icon: const Icon(Icons.check_rounded, size: 16),
+              label: const Text('Aplicar rango'),
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                textStyle: GoogleFonts.spaceGrotesk(fontSize: 13, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 

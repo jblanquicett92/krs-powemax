@@ -7,6 +7,8 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/localization/app_localizations.dart';
 import '../state/history_notifier.dart';
 import '../data/workout_record.dart';
+import '../../profile/state/routines_notifier.dart';
+import '../../profile/data/routine.dart';
 import '../../settings/state/settings_notifier.dart';
 
 class HistoryScreen extends ConsumerStatefulWidget {
@@ -160,12 +162,12 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
                       decoration: BoxDecoration(
                         color: isSelected
-                            ? AppTheme.electricCyan
+                            ? AppTheme.voltYellow
                             : AppTheme.midnightGrey,
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
                           color: isSelected
-                              ? AppTheme.electricCyan
+                              ? AppTheme.voltYellow
                               : hasWorkout
                                   ? AppTheme.voltYellow.withOpacity(0.5)
                                   : AppTheme.dividerColor,
@@ -231,21 +233,37 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                     style: GoogleFonts.outfit(
                       fontSize: 13,
                       fontWeight: FontWeight.bold,
-                      color: AppTheme.electricCyan,
+                      color: AppTheme.voltYellow,
                     ),
                   ),
                   const SizedBox(height: 12),
                   if (selectedDayRecords.isEmpty)
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 20),
-                      child: Center(
-                        child: Text(
-                          "No se registraron marcas de entrenamiento este día.",
-                          style: GoogleFonts.spaceGrotesk(
-                            color: Colors.white38,
-                            fontSize: 13,
+                      child: Column(
+                        children: [
+                          Text(
+                            "No se registraron marcas de entrenamiento este día.",
+                            style: GoogleFonts.spaceGrotesk(
+                              color: Colors.white38,
+                              fontSize: 13,
+                            ),
                           ),
-                        ),
+                          const SizedBox(height: 16),
+                          ElevatedButton.icon(
+                            onPressed: () => _showAddPastWorkoutSheet(context),
+                            icon: const Icon(Icons.add_circle_outline, size: 16),
+                            label: const Text('Registrar entrenamiento pasado'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppTheme.voltYellow.withOpacity(0.12),
+                              foregroundColor: AppTheme.voltYellow,
+                              side: BorderSide(color: AppTheme.voltYellow.withOpacity(0.4)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     )
                   else ...[
@@ -583,6 +601,390 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  void _showAddPastWorkoutSheet(BuildContext context) {
+    final routines = ref.read(routinesProvider);
+    final settings = ref.read(settingsProvider);
+
+    if (routines.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("No tienes ninguna rutina creada. Ve a Perfil > Mis Rutinas."),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: AppTheme.midnightGrey,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                'REGISTRAR ENTRENAMIENTO: PASO 1',
+                style: GoogleFonts.spaceGrotesk(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.voltYellow,
+                  letterSpacing: 1.5,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Selecciona la rutina de entrenamiento:',
+                style: GoogleFonts.spaceGrotesk(fontSize: 13, color: Colors.white54),
+              ),
+              const SizedBox(height: 20),
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.4,
+                ),
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: routines.length,
+                  itemBuilder: (context, idx) {
+                    final routine = routines[idx];
+                    return Card(
+                      color: AppTheme.darkCarbon,
+                      margin: const EdgeInsets.only(bottom: 10),
+                      child: ListTile(
+                        title: Text(
+                          routine.name,
+                          style: GoogleFonts.spaceGrotesk(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                        subtitle: Text(
+                          "${routine.exercises.length} ejercicios registrados",
+                          style: GoogleFonts.spaceGrotesk(
+                            color: Colors.white38,
+                            fontSize: 12,
+                          ),
+                        ),
+                        trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: AppTheme.voltYellow),
+                        onTap: () {
+                          Navigator.pop(ctx);
+                          _showAddPastWorkoutDayGroupSheet(context, routine, settings.weightUnit);
+                        },
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showAddPastWorkoutDayGroupSheet(BuildContext context, Routine routine, String unit) {
+    // Obtener los grupos de días únicos de la rutina seleccionada
+    final Set<String> dayNames = routine.exercises.map((e) => e.dayGroup).toSet();
+    final List<String> dayGroups = dayNames.toList();
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: AppTheme.midnightGrey,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 40),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                'REGISTRAR ENTRENAMIENTO: PASO 2',
+                style: GoogleFonts.spaceGrotesk(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.voltYellow,
+                  letterSpacing: 1.5,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Selecciona el día de la rutina "${routine.name}":',
+                style: GoogleFonts.spaceGrotesk(fontSize: 13, color: Colors.white54),
+              ),
+              const SizedBox(height: 20),
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.4,
+                ),
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: dayGroups.length,
+                  itemBuilder: (context, idx) {
+                    final day = dayGroups[idx];
+                    return Card(
+                      color: AppTheme.darkCarbon,
+                      margin: const EdgeInsets.only(bottom: 10),
+                      child: ListTile(
+                        title: Text(
+                          day,
+                          style: GoogleFonts.spaceGrotesk(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                        trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: AppTheme.voltYellow),
+                        onTap: () {
+                          Navigator.pop(ctx);
+                          _showFillPastExercisesDialog(context, routine, day, unit);
+                        },
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showFillPastExercisesDialog(
+    BuildContext context,
+    Routine routine,
+    String dayGroup,
+    String unit,
+  ) {
+    // Filtrar los ejercicios de ese dayGroup
+    final exercises = routine.exercises.where((e) => e.dayGroup == dayGroup).toList();
+    if (exercises.isEmpty) return;
+
+    // Controladores de peso para cada ejercicio
+    final Map<String, TextEditingController> weightControllers = {};
+    for (final ex in exercises) {
+      weightControllers[ex.name] = TextEditingController(text: "30.0");
+    }
+
+    // Listado de ejercicios activos/incluidos
+    final Set<String> excludedExercises = {};
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: AppTheme.midnightGrey,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: const BorderSide(color: AppTheme.dividerColor),
+              ),
+              title: Text(
+                "Registrar: $dayGroup",
+                style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: exercises.length,
+                  itemBuilder: (context, idx) {
+                    final ex = exercises[idx];
+                    final isExcluded = excludedExercises.contains(ex.name);
+
+                    return Opacity(
+                      opacity: isExcluded ? 0.4 : 1.0,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8.0),
+                        child: Row(
+                          children: [
+                            // Botón de habilitar/deshabilitar (Checkbox o Eliminar)
+                            IconButton(
+                              icon: Icon(
+                                isExcluded ? Icons.add_circle : Icons.remove_circle,
+                                color: isExcluded ? Colors.green : Colors.redAccent,
+                                size: 20,
+                              ),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              onPressed: () {
+                                setDialogState(() {
+                                  if (isExcluded) {
+                                    excludedExercises.remove(ex.name);
+                                  } else {
+                                    excludedExercises.add(ex.name);
+                                  }
+                                });
+                              },
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    ex.name,
+                                    style: GoogleFonts.spaceGrotesk(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  Text(
+                                    "${ex.sets} series x ${ex.reps} reps",
+                                    style: const TextStyle(color: Colors.white38, fontSize: 11),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            SizedBox(
+                              width: 90,
+                              height: 38,
+                              child: TextField(
+                                controller: weightControllers[ex.name],
+                                enabled: !isExcluded,
+                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.spaceGrotesk(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                                decoration: InputDecoration(
+                                  contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                                  suffixText: " $unit",
+                                  suffixStyle: const TextStyle(color: Colors.white38, fontSize: 10),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                    borderSide: const BorderSide(color: AppTheme.dividerColor),
+                                  ),
+                                  disabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                    borderSide: const BorderSide(color: Colors.white10),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                    borderSide: const BorderSide(color: AppTheme.voltYellow),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text("Cancelar", style: TextStyle(color: Colors.white54)),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    final historyNotifier = ref.read(historyProvider.notifier);
+                    
+                    // Guardar cada ejercicio con las series y repeticiones planificadas a esa fecha
+                    int itemIndex = 0;
+                    for (final ex in exercises) {
+                      if (excludedExercises.contains(ex.name)) continue;
+
+                      final weightStr = weightControllers[ex.name]?.text ?? "30.0";
+                      final double weight = double.tryParse(weightStr.replaceAll(',', '.')) ?? 30.0;
+                      
+                      // Calcular 1RM estimado (fórmula por defecto Epley)
+                      // 1RM = peso * (1 + reps/30)
+                      final double oneRepMax = double.parse((weight * (1.0 + ex.reps / 30.0)).toStringAsFixed(1));
+
+                      // Respetar las series planificadas: Guardar tantas filas (series) como indique el ejercicio
+                      for (int setIdx = 0; setIdx < ex.sets; setIdx++) {
+                        // Agregar desfase en minutos/segundos para preservar el orden cronológico
+                        final historicalDate = DateTime(
+                          _selectedCalendarDay.year,
+                          _selectedCalendarDay.month,
+                          _selectedCalendarDay.day,
+                          12, // mediodía
+                          itemIndex, // minuto desfasado por ejercicio
+                          setIdx, // segundo desfasado por serie
+                        );
+
+                        historyNotifier.addRecord(
+                          exerciseName: ex.name,
+                          weight: weight,
+                          reps: ex.reps,
+                          oneRepMax: oneRepMax,
+                          unit: unit,
+                          formula: 'epley',
+                          customDate: historicalDate,
+                        );
+                      }
+                      itemIndex++;
+                    }
+
+                    Navigator.pop(ctx);
+                    
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text("¡Entrenamiento registrado correctamente en el pasado!"),
+                        backgroundColor: AppTheme.voltYellow,
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.voltYellow,
+                    foregroundColor: AppTheme.darkCarbon,
+                  ),
+                  child: const Text("Guardar", style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }

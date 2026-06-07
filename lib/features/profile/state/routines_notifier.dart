@@ -4,6 +4,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../data/routine.dart';
 import '../../history/data/workout_record.dart';
 
+import 'package:flutter/services.dart' show rootBundle;
+
 class RoutinesNotifier extends StateNotifier<List<Routine>> {
   RoutinesNotifier() : super([]) {
     _loadRoutines();
@@ -14,10 +16,10 @@ class RoutinesNotifier extends StateNotifier<List<Routine>> {
   Future<void> _loadRoutines() async {
     final prefs = await SharedPreferences.getInstance();
     final String? jsonStr = prefs.getString(_keyRoutines);
+    final defaultRoutines = await _loadDefaultRoutinesFromJson();
 
     if (jsonStr == null) {
       // Si no hay rutinas guardadas, cargamos las de prueba/por defecto
-      final defaultRoutines = _getDefaultRoutines();
       state = defaultRoutines;
       await _saveToPrefs(defaultRoutines);
       return;
@@ -29,23 +31,17 @@ class RoutinesNotifier extends StateNotifier<List<Routine>> {
           .map((item) => Routine.fromJson(item as Map<String, dynamic>))
           .toList();
 
-      // MIGRACIÓN / RESET: Si las rutinas por defecto tienen datos viejos u obsoletos, las forzamos a los valores correctos
+      // MIGRACIÓN / RESET: Siempre forzamos a que las rutinas por defecto se actualicen con el contenido del JSON
       bool needsSave = false;
-      final defaultTemplates = _getDefaultRoutines();
 
       routines = routines.map((r) {
         if (r.id == 'default_push_pull') {
-          final hasAll16 = r.exercises.length == 16;
-          final hasEmpujeB = r.exercises.any((e) => e.dayGroup == 'Empuje B (Enfoque hipertrofia)');
-          final hasJalonB = r.exercises.any((e) => e.dayGroup == 'Jalón B (Enfoque grosor/detalle)');
-          if (!hasAll16 || !hasEmpujeB || !hasJalonB) {
-            needsSave = true;
-            return defaultTemplates.firstWhere((dr) => dr.id == 'default_push_pull');
-          }
-        }
-        if (r.id == 'default_arnold' && r.exercises.length < 9) {
           needsSave = true;
-          return defaultTemplates.firstWhere((dr) => dr.id == 'default_arnold');
+          return defaultRoutines.firstWhere((dr) => dr.id == 'default_push_pull');
+        }
+        if (r.id == 'default_arnold') {
+          needsSave = true;
+          return defaultRoutines.firstWhere((dr) => dr.id == 'default_arnold');
         }
         return r;
       }).toList();
@@ -55,61 +51,86 @@ class RoutinesNotifier extends StateNotifier<List<Routine>> {
         await _saveToPrefs(routines);
       }
     } catch (e) {
-      state = _getDefaultRoutines();
+      state = defaultRoutines;
     }
   }
 
-  List<Routine> _getDefaultRoutines() {
-    return [
-      Routine(
-        id: 'default_push_pull',
-        name: 'Rutina Empuje y Jalón',
-        exercises: [
-          // Empuje A (Enfoque fuerza)
-          RoutineExercise(name: 'Press de banca con barra', sets: 4, reps: 8, dayGroup: 'Empuje A (Enfoque fuerza)'),
-          RoutineExercise(name: 'Press militar (hombros)', sets: 3, reps: 10, dayGroup: 'Empuje A (Enfoque fuerza)'),
-          RoutineExercise(name: 'Fondos en paralelas (o máquina)', sets: 3, reps: 12, dayGroup: 'Empuje A (Enfoque fuerza)'),
-          RoutineExercise(name: 'Extensiones de tríceps en polea', sets: 3, reps: 15, dayGroup: 'Empuje A (Enfoque fuerza)'),
-          
-          // Empuje B (Enfoque hipertrofia)
-          RoutineExercise(name: 'Press inclinado con mancuernas', sets: 4, reps: 12, dayGroup: 'Empuje B (Enfoque hipertrofia)'),
-          RoutineExercise(name: 'Elevaciones laterales (hombros)', sets: 4, reps: 15, dayGroup: 'Empuje B (Enfoque hipertrofia)'),
-          RoutineExercise(name: 'Press máquina o aperturas con poleas', sets: 3, reps: 15, dayGroup: 'Empuje B (Enfoque hipertrofia)'),
-          RoutineExercise(name: 'Press francés (tríceps con barra Z)', sets: 3, reps: 12, dayGroup: 'Empuje B (Enfoque hipertrofia)'),
-          
-          // Jalón A (Enfoque fuerza/amplitud)
-          RoutineExercise(name: 'Dominadas (o jalón al pecho en polea)', sets: 4, reps: 10, dayGroup: 'Jalón A (Enfoque fuerza/amplitud)'),
-          RoutineExercise(name: 'Remo con barra (agarre supino o prono)', sets: 4, reps: 10, dayGroup: 'Jalón A (Enfoque fuerza/amplitud)'),
-          RoutineExercise(name: 'Face pulls (hombro posterior)', sets: 3, reps: 15, dayGroup: 'Jalón A (Enfoque fuerza/amplitud)'),
-          RoutineExercise(name: 'Curl de bíceps con barra', sets: 3, reps: 12, dayGroup: 'Jalón A (Enfoque fuerza/amplitud)'),
-          
-          // Jalón B (Enfoque grosor/detalle)
-          RoutineExercise(name: 'Remo en polea baja (agarre cerrado)', sets: 4, reps: 12, dayGroup: 'Jalón B (Enfoque grosor/detalle)'),
-          RoutineExercise(name: 'Jalón al pecho (agarre neutro)', sets: 3, reps: 12, dayGroup: 'Jalón B (Enfoque grosor/detalle)'),
-          RoutineExercise(name: 'Pájaros con mancuernas (hombro posterior)', sets: 3, reps: 15, dayGroup: 'Jalón B (Enfoque grosor/detalle)'),
-          RoutineExercise(name: 'Curl de bíceps martillo (con mancuernas)', sets: 3, reps: 12, dayGroup: 'Jalón B (Enfoque grosor/detalle)'),
-        ],
-        dateCreated: DateTime.now(),
-        isDefault: true,
-      ),
-      Routine(
-        id: 'default_arnold',
-        name: 'Rutina Arnold Split',
-        exercises: [
-          RoutineExercise(name: 'Press de Banca', sets: 4, reps: 10, dayGroup: 'Día A (Pecho/Espalda)'),
-          RoutineExercise(name: 'Aperturas Planas', sets: 3, reps: 12, dayGroup: 'Día A (Pecho/Espalda)'),
-          RoutineExercise(name: 'Dominadas', sets: 4, reps: 8, dayGroup: 'Día A (Pecho/Espalda)'),
-          RoutineExercise(name: 'Remo con Mancuerna', sets: 4, reps: 10, dayGroup: 'Día A (Pecho/Espalda)'),
-          RoutineExercise(name: 'Press Militar con Mancuernas', sets: 4, reps: 10, dayGroup: 'Día B (Hombros/Brazos)'),
-          RoutineExercise(name: 'Elevaciones Laterales', sets: 4, reps: 15, dayGroup: 'Día B (Hombros/Brazos)'),
-          RoutineExercise(name: 'Curl de Bíceps Inclinado', sets: 3, reps: 12, dayGroup: 'Día B (Hombros/Brazos)'),
-          RoutineExercise(name: 'Copa de Tríceps', sets: 3, reps: 12, dayGroup: 'Día B (Hombros/Brazos)'),
-          RoutineExercise(name: 'Sentadilla Hacka o Prensa', sets: 4, reps: 10, dayGroup: 'Día C (Piernas)'),
-        ],
-        dateCreated: DateTime.now(),
-        isDefault: true,
-      ),
-    ];
+  Future<List<Routine>> _loadDefaultRoutinesFromJson() async {
+    try {
+      final String jsonString = await rootBundle.loadString('assets/default_routines.json');
+      final Map<String, dynamic> parsed = jsonDecode(jsonString) as Map<String, dynamic>;
+      
+      final List<Routine> list = [];
+      parsed.forEach((key, val) {
+        final data = val as Map<String, dynamic>;
+        final List<dynamic> exercisesJson = data['exercises'] as List<dynamic>;
+        final exercises = exercisesJson.map((e) {
+          final m = e as Map<String, dynamic>;
+          return RoutineExercise(
+            name: m['name'] as String,
+            sets: m['sets'] as int,
+            reps: m['reps'] as int,
+            dayGroup: m['dayGroup'] as String,
+          );
+        }).toList();
+
+        list.add(
+          Routine(
+            id: key,
+            name: data['name'] as String,
+            exercises: exercises,
+            dateCreated: DateTime.now(),
+            isDefault: true,
+          ),
+        );
+      });
+      return list;
+    } catch (e) {
+      // Fallback estático en caso de que falle la lectura del asset
+      return [
+        Routine(
+          id: 'default_push_pull',
+          name: 'Rutina Empuje y Jalón',
+          exercises: [
+            RoutineExercise(name: 'Press de banca con barra', sets: 4, reps: 8, dayGroup: 'Empuje A (Enfoque fuerza)'),
+            RoutineExercise(name: 'Press militar (hombros)', sets: 3, reps: 10, dayGroup: 'Empuje A (Enfoque fuerza)'),
+            RoutineExercise(name: 'Fondos en paralelas (o máquina)', sets: 3, reps: 12, dayGroup: 'Empuje A (Enfoque fuerza)'),
+            RoutineExercise(name: 'Extensiones de tríceps en polea', sets: 3, reps: 15, dayGroup: 'Empuje A (Enfoque fuerza)'),
+            RoutineExercise(name: 'Press inclinado con mancuernas', sets: 4, reps: 12, dayGroup: 'Empuje B (Enfoque hipertrofia)'),
+            RoutineExercise(name: 'Elevaciones laterales (hombros)', sets: 4, reps: 15, dayGroup: 'Empuje B (Enfoque hipertrofia)'),
+            RoutineExercise(name: 'Press máquina o aperturas con poleas', sets: 3, reps: 15, dayGroup: 'Empuje B (Enfoque hipertrofia)'),
+            RoutineExercise(name: 'Press francés (tríceps con barra Z)', sets: 3, reps: 12, dayGroup: 'Empuje B (Enfoque hipertrofia)'),
+            RoutineExercise(name: 'Dominadas (o jalón al pecho en polea)', sets: 4, reps: 10, dayGroup: 'Jalón A (Enfoque fuerza/amplitud)'),
+            RoutineExercise(name: 'Remo con barra (agarre supino o prono)', sets: 4, reps: 10, dayGroup: 'Jalón A (Enfoque fuerza/amplitud)'),
+            RoutineExercise(name: 'Face pulls (hombro posterior)', sets: 3, reps: 15, dayGroup: 'Jalón A (Enfoque fuerza/amplitud)'),
+            RoutineExercise(name: 'Curl de bíceps con barra', sets: 3, reps: 12, dayGroup: 'Jalón A (Enfoque fuerza/amplitud)'),
+            RoutineExercise(name: 'Remo en polea baja (agarre cerrado)', sets: 4, reps: 12, dayGroup: 'Jalón B (Enfoque grosor/detalle)'),
+            RoutineExercise(name: 'Jalón al pecho (agarre neutro)', sets: 3, reps: 12, dayGroup: 'Jalón B (Enfoque grosor/detalle)'),
+            RoutineExercise(name: 'Pájaros con mancuernas (hombro posterior)', sets: 3, reps: 15, dayGroup: 'Jalón B (Enfoque grosor/detalle)'),
+            RoutineExercise(name: 'Curl de bíceps martillo (con mancuernas)', sets: 3, reps: 12, dayGroup: 'Jalón B (Enfoque grosor/detalle)'),
+          ],
+          dateCreated: DateTime.now(),
+          isDefault: true,
+        ),
+        Routine(
+          id: 'default_arnold',
+          name: 'Rutina Arnold Split',
+          exercises: [
+            RoutineExercise(name: 'Press de Banca', sets: 4, reps: 10, dayGroup: 'Día A (Pecho/Espalda)'),
+            RoutineExercise(name: 'Aperturas Planas', sets: 3, reps: 12, dayGroup: 'Día A (Pecho/Espalda)'),
+            RoutineExercise(name: 'Dominadas', sets: 4, reps: 8, dayGroup: 'Día A (Pecho/Espalda)'),
+            RoutineExercise(name: 'Remo con Mancuerna', sets: 4, reps: 10, dayGroup: 'Día A (Pecho/Espalda)'),
+            RoutineExercise(name: 'Press Militar con Mancuernas', sets: 4, reps: 10, dayGroup: 'Día B (Hombros/Brazos)'),
+            RoutineExercise(name: 'Elevaciones Laterales', sets: 4, reps: 15, dayGroup: 'Día B (Hombros/Brazos)'),
+            RoutineExercise(name: 'Curl de Bíceps Inclinado', sets: 3, reps: 12, dayGroup: 'Día B (Hombros/Brazos)'),
+            RoutineExercise(name: 'Copa de Tríceps', sets: 3, reps: 12, dayGroup: 'Día B (Hombros/Brazos)'),
+            RoutineExercise(name: 'Sentadilla Hacka o Prensa', sets: 4, reps: 10, dayGroup: 'Día C (Piernas)'),
+          ],
+          dateCreated: DateTime.now(),
+          isDefault: true,
+        ),
+      ];
+    }
   }
 
   Future<void> _saveToPrefs(List<Routine> routines) async {

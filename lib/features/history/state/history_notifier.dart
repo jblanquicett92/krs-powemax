@@ -38,14 +38,15 @@ class HistoryNotifier extends StateNotifier<List<WorkoutRecord>> {
     required double oneRepMax,
     required String unit,
     required String formula,
+    DateTime? customDate,
   }) async {
     final newRecord = WorkoutRecord(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      id: DateTime.now().millisecondsSinceEpoch.toString() + '_' + exerciseName.hashCode.toString(),
       exerciseName: exerciseName.trim(),
       weight: weight,
       reps: reps,
       oneRepMax: oneRepMax,
-      date: DateTime.now(),
+      date: customDate ?? DateTime.now(),
       unit: unit,
       formula: formula,
     );

@@ -120,6 +120,8 @@ class CalculatorScreen extends ConsumerWidget {
             const SizedBox(height: 8),
             RepsSelectorInput(
               value: calcState.reps,
+              minReps: settings.minReps,
+              maxReps: settings.maxReps,
               onChanged: calcNotifier.updateReps,
             ),
             const SizedBox(height: 24),
@@ -2113,11 +2115,15 @@ class _WeightSelectorInputState extends State<WeightSelectorInput> {
 // Widget de doble entrada para repeticiones (Input numérico + Slider)
 class RepsSelectorInput extends StatefulWidget {
   final int value;
+  final int minReps;
+  final int maxReps;
   final ValueChanged<int> onChanged;
 
   const RepsSelectorInput({
     super.key,
     required this.value,
+    required this.minReps,
+    required this.maxReps,
     required this.onChanged,
   });
 
@@ -2194,7 +2200,7 @@ class _RepsSelectorInputState extends State<RepsSelectorInput> {
                   ),
                   onChanged: (val) {
                     final int? parsed = int.tryParse(val);
-                    if (parsed != null && parsed > 0 && parsed <= 30) {
+                    if (parsed != null && parsed >= widget.minReps && parsed <= widget.maxReps) {
                       widget.onChanged(parsed);
                     }
                   },
@@ -2203,10 +2209,10 @@ class _RepsSelectorInputState extends State<RepsSelectorInput> {
             ],
           ),
           Slider(
-            value: widget.value.toDouble().clamp(1.0, 20.0),
-            min: 1,
-            max: 20,
-            divisions: 19,
+            value: widget.value.toDouble().clamp(widget.minReps.toDouble(), widget.maxReps.toDouble()),
+            min: widget.minReps.toDouble(),
+            max: widget.maxReps.toDouble(),
+            divisions: (widget.maxReps - widget.minReps).clamp(1, 100),
             label: widget.value.toString(),
             onChanged: (val) {
               widget.onChanged(val.toInt());

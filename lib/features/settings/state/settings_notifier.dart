@@ -24,12 +24,17 @@ class SettingsState {
   final String huggingFaceToken;
   final bool profileSetupDone;
 
+  final int minReps;
+  final int maxReps;
+
   SettingsState({
     required this.language,
     required this.weightUnit,
     required this.defaultFormula,
     required this.minWeight,
     required this.maxWeight,
+    required this.minReps,
+    required this.maxReps,
     required this.userHeight,
     required this.userWeight,
     required this.userName,
@@ -52,6 +57,8 @@ class SettingsState {
     String? defaultFormula,
     double? minWeight,
     double? maxWeight,
+    int? minReps,
+    int? maxReps,
     double? userHeight,
     double? userWeight,
     String? userName,
@@ -73,6 +80,8 @@ class SettingsState {
       defaultFormula: defaultFormula ?? this.defaultFormula,
       minWeight: minWeight ?? this.minWeight,
       maxWeight: maxWeight ?? this.maxWeight,
+      minReps: minReps ?? this.minReps,
+      maxReps: maxReps ?? this.maxReps,
       userHeight: userHeight ?? this.userHeight,
       userWeight: userWeight ?? this.userWeight,
       userName: userName ?? this.userName,
@@ -98,6 +107,8 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
           defaultFormula: 'epley',
           minWeight: 0.0,
           maxWeight: 300.0,
+          minReps: 1,
+          maxReps: 20,
           userHeight: 0.0,
           userWeight: 0.0,
           userName: '',
@@ -121,6 +132,8 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
   static const String _keyFormula = 'settings_formula';
   static const String _keyMinWeight = 'settings_min_weight';
   static const String _keyMaxWeight = 'settings_max_weight';
+  static const String _keyMinReps = 'settings_min_reps';
+  static const String _keyMaxReps = 'settings_max_reps';
   static const String _keyUserHeight = 'settings_user_height';
   static const String _keyUserWeight = 'settings_user_weight';
   static const String _keyUserName = 'settings_user_name';
@@ -181,6 +194,8 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
     final String formula = prefs.getString(_keyFormula) ?? 'epley';
     final double minW = prefs.getDouble(_keyMinWeight) ?? 0.0;
     final double maxW = prefs.getDouble(_keyMaxWeight) ?? 300.0;
+    final int minReps = prefs.getInt(_keyMinReps) ?? 1;
+    final int maxReps = prefs.getInt(_keyMaxReps) ?? 20;
     final double userH = prefs.getDouble(_keyUserHeight) ?? 0.0;
     final double userW = prefs.getDouble(_keyUserWeight) ?? 0.0;
     final String userN = prefs.getString(_keyUserName) ?? '';
@@ -213,6 +228,8 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
       defaultFormula: formula,
       minWeight: minW,
       maxWeight: maxW,
+      minReps: minReps,
+      maxReps: maxReps,
       userHeight: userH,
       userWeight: userW,
       userName: userN,
@@ -259,6 +276,18 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setDouble(_keyMaxWeight, maxWeight);
     state = state.copyWith(maxWeight: maxWeight);
+  }
+
+  Future<void> setMinReps(int minReps) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_keyMinReps, minReps);
+    state = state.copyWith(minReps: minReps);
+  }
+
+  Future<void> setMaxReps(int maxReps) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_keyMaxReps, maxReps);
+    state = state.copyWith(maxReps: maxReps);
   }
 
   Future<void> setUserHeight(double userHeight) async {
