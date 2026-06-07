@@ -863,14 +863,28 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
                   ),
                   child: InkWell(
                     onLongPress: () {
-                      ref.read(settingsProvider.notifier).setSelectedRoutineId(routine.id);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('¡"${routine.name}" seleccionada como Rutina del Día!'),
-                          backgroundColor: AppTheme.voltYellow,
-                          behavior: SnackBarBehavior.floating,
-                        ),
-                      );
+                      if (isSelected) {
+                        ref.read(settingsProvider.notifier).setSelectedRoutineId('');
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Se ha desactivado la rutina activa.',
+                              style: TextStyle(color: Colors.white),
+                            ),
+                            backgroundColor: AppTheme.darkCarbon,
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      } else {
+                        ref.read(settingsProvider.notifier).setSelectedRoutineId(routine.id);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('¡"${routine.name}" seleccionada como Rutina del Día!'),
+                            backgroundColor: AppTheme.voltYellow,
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      }
                     },
                     borderRadius: BorderRadius.circular(16),
                     child: Column(

@@ -121,7 +121,7 @@ class _CoachChatScreenState extends ConsumerState<CoachChatScreen> {
                 icon: const Icon(Icons.refresh, color: Colors.white60),
                 tooltip: "Reiniciar Chat",
                 onPressed: () {
-                  coachNotifier.clearChat();
+                  _showResetChatDialog(context, coachNotifier);
                 },
               ),
             if (coachState.isOnboarded)
@@ -1387,6 +1387,48 @@ class _CoachChatScreenState extends ConsumerState<CoachChatScreen> {
               ),
               child: Text(
                 "Confirmar",
+                style: GoogleFonts.spaceGrotesk(fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Diálogo para confirmar el reinicio del historial del chat
+  void _showResetChatDialog(BuildContext context, CoachNotifier notifier) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(
+            "¿Reiniciar Chat?",
+            style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+          ),
+          content: Text(
+            "Esta acción borrará de forma permanente todo el historial de chat con tu Coach. No podrás recuperar los mensajes anteriores. ¿Deseas continuar?",
+            style: GoogleFonts.spaceGrotesk(fontSize: 14, height: 1.35),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text(
+                "Cancelar",
+                style: GoogleFonts.spaceGrotesk(color: Colors.white54),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                notifier.clearChat();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.voltYellow,
+                foregroundColor: AppTheme.darkCarbon,
+              ),
+              child: Text(
+                "Reiniciar",
                 style: GoogleFonts.spaceGrotesk(fontWeight: FontWeight.bold),
               ),
             ),

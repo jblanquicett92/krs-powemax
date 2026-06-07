@@ -505,6 +505,24 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
       spots.add(FlSpot(i.toDouble(), chartRecords[i].oneRepMax));
     }
 
+    double minY = double.infinity;
+    double maxY = double.negativeInfinity;
+    for (final spot in spots) {
+      if (spot.y < minY) minY = spot.y;
+      if (spot.y > maxY) maxY = spot.y;
+    }
+
+    if (minY == maxY) {
+      // Si todos los valores de 1RM son iguales (sin cambio), darle un margen hacia arriba y abajo
+      minY = (minY - 10).clamp(0, double.infinity);
+      maxY = maxY + 10;
+    } else {
+      // Si hay varianza, darle un margen del 10% para que no toque los bordes
+      final range = maxY - minY;
+      minY = (minY - range * 0.15).clamp(0, double.infinity);
+      maxY = maxY + range * 0.15;
+    }
+
     return LineChart(
       LineChartData(
         gridData: const FlGridData(show: false),
@@ -548,6 +566,8 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
         borderData: FlBorderData(show: false),
         minX: 0,
         maxX: (chartRecords.length - 1).toDouble(),
+        minY: minY,
+        maxY: maxY,
         lineBarsData: [
           LineChartBarData(
             spots: spots,

@@ -7,6 +7,7 @@ import '../../settings/state/settings_notifier.dart';
 import '../state/calculator_notifier.dart';
 import '../../profile/state/routines_notifier.dart';
 import '../../profile/data/routine.dart';
+import '../../profile/presentation/routines_screen.dart';
 import '../../history/data/workout_record.dart';
 import '../../history/state/history_notifier.dart';
 import 'dart:async';
@@ -16,6 +17,15 @@ import 'package:flutter/services.dart';
 final selectedRoutineIdProvider = StateProvider<String?>((ref) => null);
 final currentExerciseNameProvider = StateProvider<String?>((ref) => null);
 final selectedDayIndexProvider = StateProvider.autoDispose<int>((ref) => 0);
+
+// Override de sets/reps solo para la sesión actual (no persiste en la rutina)
+// Clave: nombre del ejercicio, Valor: (sets, reps)
+final sessionOverridesProvider =
+    StateProvider<Map<String, ({int sets, int reps})>>((ref) => {});
+
+// Ejercicios extra agregados solo para la sesión actual (clave = dayGroup)
+final sessionExtraExercisesProvider =
+    StateProvider<Map<String, List<RoutineExercise>>>((ref) => {});
 
 
 class CalculatorScreen extends ConsumerWidget {
@@ -116,9 +126,25 @@ class CalculatorScreen extends ConsumerWidget {
 
             // BOTÓN GUARDAR MARCA
             ElevatedButton.icon(
-              onPressed: () => _showSaveDialog(context, ref, calcState, settings.weightUnit, historyNotifier),
+              onPressed: settings.selectedRoutineId.isEmpty
+                  ? () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Debes seleccionar o activar una rutina antes de guardar marcas.'),
+                          backgroundColor: Colors.redAccent,
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    }
+                  : () => _showSaveDialog(context, ref, calcState, settings.weightUnit, historyNotifier),
               icon: const Icon(Icons.bookmark_outline),
               label: Text(context.tr('calc_save_btn', ref)),
+              style: settings.selectedRoutineId.isEmpty
+                  ? ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white12,
+                      foregroundColor: Colors.white24,
+                    )
+                  : null,
             ),
             const SizedBox(height: 32),
 
@@ -503,33 +529,42 @@ class CalculatorScreen extends ConsumerWidget {
         : routines.firstWhere((r) => r.id == settings.selectedRoutineId, orElse: () => routines.first);
 
     if (selectedRoutine == null) {
-      return Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: AppTheme.midnightGrey,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppTheme.dividerColor),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              "RUTINA",
-              style: GoogleFonts.spaceGrotesk(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: AppTheme.voltYellow,
-                letterSpacing: 1.5,
+      return InkWell(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const RoutinesScreen()),
+          );
+        },
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: AppTheme.midnightGrey,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppTheme.dividerColor),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                "RUTINA",
+                style: GoogleFonts.spaceGrotesk(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.voltYellow,
+                  letterSpacing: 1.5,
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              routines.isEmpty
-                  ? "No tienes rutinas creadas aún.\nVe a Perfil > Mis Rutinas para crear tu primera rutina."
-                  : "No tienes una rutina activa asignada para hoy. Selecciona una arriba o actívala desde tu perfil.",
-              style: GoogleFonts.spaceGrotesk(color: Colors.white38, fontSize: 13),
-            )
-          ],
+              const SizedBox(height: 12),
+              Text(
+                routines.isEmpty
+                    ? "No tienes rutinas creadas aún.\nPresiona aquí para ir a Mis Rutinas y crear tu primera rutina."
+                    : "No tienes una rutina activa asignada para hoy.\nPresiona aquí para ir a tus rutinas y activar una.",
+                style: GoogleFonts.spaceGrotesk(color: Colors.white38, fontSize: 13),
+              )
+            ],
+          ),
         ),
       );
     }
@@ -723,6 +758,7 @@ class CalculatorScreen extends ConsumerWidget {
                       },
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 250),
+                  width: double.infinity,
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   decoration: BoxDecoration(
                     color: isLocked
@@ -737,7 +773,6 @@ class CalculatorScreen extends ConsumerWidget {
                     ),
                   ),
                   child: Row(
-                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
                         isLocked ? Icons.lock_outline : Icons.calendar_today_outlined,
@@ -745,7 +780,7 @@ class CalculatorScreen extends ConsumerWidget {
                         color: isLocked ? Colors.white38 : AppTheme.voltYellow,
                       ),
                       const SizedBox(width: 8),
-                      Flexible(
+                      Expanded(
                         child: Text(
                           currentDayName,
                           style: GoogleFonts.spaceGrotesk(
@@ -825,10 +860,13 @@ class CalculatorScreen extends ConsumerWidget {
                   ),
                   child: Row(
                     children: [
-                      Icon(
-                        isAllCompleted ? Icons.check_circle : Icons.play_circle_outline,
-                        color: isAllCompleted ? Colors.green : AppTheme.voltYellow,
-                        size: 20,
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: isAllCompleted ? Colors.green : AppTheme.voltYellow,
+                        ),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
@@ -861,25 +899,64 @@ class CalculatorScreen extends ConsumerWidget {
             ),
           ],
 
-          // Exercise list for selected day (inline, no fixed height)
+          // Exercise list for selected day (fixed height, scrollable)
           Builder(
             builder: (context) {
               final day = sortedDays[safeIndex];
-              final exercises = grouped[day]!;
+              final sessionOverrides = ref.watch(sessionOverridesProvider);
+              final sessionExtras = ref.watch(sessionExtraExercisesProvider);
+              final routineExercises = grouped[day]!;
+              final extraExercises = sessionExtras[day] ?? [];
+              final today = DateTime.now();
 
-              return ReorderableListView.builder(
-                buildDefaultDragHandles: false,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: exercises.length,
-                onReorder: (oldIndex, newIndex) {
-                  ref.read(routinesProvider.notifier).reorderExercise(
-                    selectedRoutine.id,
-                    day,
-                    oldIndex,
-                    newIndex,
-                  );
-                },
+              // Combinar rutina + extras de sesión
+              final allExercises = [...routineExercises, ...extraExercises];
+
+              // Separar pendientes y completados para ordenar completados al final
+              final pendingExercises = allExercises.where((ex) {
+                final override = sessionOverrides[ex.name];
+                final effectiveSets = override?.sets ?? ex.sets;
+                final todayCount = history.where((r) =>
+                    r.exerciseName.trim().toLowerCase() == ex.name.trim().toLowerCase() &&
+                    r.date.year == today.year &&
+                    r.date.month == today.month &&
+                    r.date.day == today.day).length;
+                return todayCount < effectiveSets;
+              }).toList();
+
+              final completedExercises = allExercises.where((ex) {
+                final override = sessionOverrides[ex.name];
+                final effectiveSets = override?.sets ?? ex.sets;
+                final todayCount = history.where((r) =>
+                    r.exerciseName.trim().toLowerCase() == ex.name.trim().toLowerCase() &&
+                    r.date.year == today.year &&
+                    r.date.month == today.month &&
+                    r.date.day == today.day).length;
+                return todayCount >= effectiveSets;
+              }).toList();
+
+              final exercises = [...pendingExercises, ...completedExercises];
+
+              return SizedBox(
+                height: 320,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: ReorderableListView.builder(
+                    buildDefaultDragHandles: false,
+                    itemCount: exercises.length,
+                    onReorder: (oldIndex, newIndex) {
+                      // Solo reordenar ejercicios de la rutina original (no extras de sesión)
+                      final isOldInRoutine = oldIndex < routineExercises.length;
+                      final isNewInRoutine = newIndex <= routineExercises.length;
+                      if (isOldInRoutine && isNewInRoutine) {
+                        ref.read(routinesProvider.notifier).reorderExercise(
+                          selectedRoutine.id,
+                          day,
+                          oldIndex,
+                          newIndex,
+                        );
+                      }
+                    },
                 itemBuilder: (context, exIdx) {
                   final exercise = exercises[exIdx];
                   final isSelected = activeExercise == exercise.name;
@@ -897,163 +974,264 @@ class CalculatorScreen extends ConsumerWidget {
                       r.date.day == today.day
                   ).toList().reversed.toList();
 
-                  final isCompleted = todayExRecords.length >= exercise.sets;
+                  final sessionOverrides = ref.watch(sessionOverridesProvider);
+                  final sessionOverride = sessionOverrides[exercise.name];
+                  final effectiveSets = sessionOverride?.sets ?? exercise.sets;
+                  final effectiveReps = sessionOverride?.reps ?? exercise.reps;
+                  final isCompleted = todayExRecords.length >= effectiveSets;
 
-                  return Container(
+                  return GestureDetector(
                     key: ValueKey('calc_ex_${exercise.name}_$exIdx'),
-                    margin: const EdgeInsets.only(bottom: 8),
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? AppTheme.voltYellow.withOpacity(0.06)
-                          : isCompleted
-                              ? Colors.green.withOpacity(0.04)
-                              : AppTheme.darkCarbon,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: isSelected
-                            ? AppTheme.voltYellow
-                            : isCompleted
-                                ? Colors.green.withOpacity(0.3)
-                                : AppTheme.dividerColor,
-                        width: isSelected ? 1 : 0.5,
-                      ),
+                    onTap: isCompleted
+                        ? null
+                        : () {
+                            // Seleccionar o deseleccionar
+                            if (isSelected) {
+                              ref.read(currentExerciseNameProvider.notifier).state = null;
+                            } else {
+                              ref.read(currentExerciseNameProvider.notifier).state = exercise.name;
+                              final historyList = ref.read(historyProvider);
+                              final exRecords = historyList.where((r) =>
+                                  r.exerciseName.trim().toLowerCase() ==
+                                  exercise.name.trim().toLowerCase());
+                              if (exRecords.isNotEmpty) {
+                                calcNotifier.updateWeight(exRecords.first.weight);
+                                calcNotifier.updateReps(exRecords.first.reps);
+                              } else {
+                                calcNotifier.updateReps(effectiveReps);
+                              }
+                            }
+                          },
+                    onLongPress: () => _showSessionEditDialog(
+                      context,
+                      ref,
+                      exercise,
+                      effectiveSets,
+                      effectiveReps,
                     ),
-                    child: Row(
-                      children: [
-                        // Drag handle
-                        ReorderableDragStartListener(
-                          index: exIdx,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 4.0),
-                            child: Icon(
-                              Icons.drag_indicator,
-                              size: 18,
-                              color: Colors.white24,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? AppTheme.voltYellow.withOpacity(0.06)
+                            : isCompleted
+                                ? Colors.green.withOpacity(0.04)
+                                : AppTheme.darkCarbon,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: isSelected
+                              ? AppTheme.voltYellow
+                              : isCompleted
+                                  ? Colors.green.withOpacity(0.3)
+                                  : AppTheme.dividerColor,
+                          width: isSelected ? 1.5 : 0.5,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          // Drag handle
+                          ReorderableDragStartListener(
+                            index: exIdx,
+                            child: const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 4.0, vertical: 4.0),
+                              child: Icon(
+                                Icons.drag_indicator,
+                                size: 18,
+                                color: Colors.white24,
+                              ),
                             ),
                           ),
-                        ),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      exercise.name,
-                                      style: GoogleFonts.spaceGrotesk(
-                                        fontWeight: FontWeight.bold,
-                                        color: isCompleted ? Colors.white38 : Colors.white,
-                                        fontSize: 13,
-                                        decoration: isCompleted ? TextDecoration.lineThrough : null,
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        exercise.name,
+                                        style: GoogleFonts.spaceGrotesk(
+                                          fontWeight: FontWeight.bold,
+                                          color: isCompleted
+                                              ? Colors.white38
+                                              : isSelected
+                                                  ? AppTheme.voltYellow
+                                                  : Colors.white,
+                                          fontSize: 13,
+                                          decoration: isCompleted ? TextDecoration.lineThrough : null,
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: isCompleted
-                                          ? Colors.green.withOpacity(0.1)
-                                          : AppTheme.voltYellow.withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: Text(
-                                      "${exercise.sets}x${exercise.reps}",
-                                      style: GoogleFonts.spaceGrotesk(
-                                        color: isCompleted ? Colors.green : AppTheme.voltYellow,
-                                        fontSize: 9,
-                                        fontWeight: FontWeight.bold,
+                                    const SizedBox(width: 6),
+                                    // Badge sets×reps: muestra override si lo hay
+                                    GestureDetector(
+                                      onTap: () => _showSessionEditDialog(
+                                        context, ref, exercise, effectiveSets, effectiveReps),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                                        decoration: BoxDecoration(
+                                          color: sessionOverride != null
+                                              ? AppTheme.electricCyan.withOpacity(0.12)
+                                              : isCompleted
+                                                  ? Colors.green.withOpacity(0.1)
+                                                  : AppTheme.voltYellow.withOpacity(0.1),
+                                          borderRadius: BorderRadius.circular(5),
+                                          border: Border.all(
+                                            color: sessionOverride != null
+                                                ? AppTheme.electricCyan.withOpacity(0.4)
+                                                : Colors.transparent,
+                                          ),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            if (sessionOverride != null)
+                                              const Padding(
+                                                padding: EdgeInsets.only(right: 3),
+                                                child: Icon(Icons.edit_rounded,
+                                                    size: 9, color: AppTheme.electricCyan),
+                                              ),
+                                            Text(
+                                              '${effectiveSets}×${effectiveReps}',
+                                              style: GoogleFonts.spaceGrotesk(
+                                                color: sessionOverride != null
+                                                    ? AppTheme.electricCyan
+                                                    : isCompleted
+                                                        ? Colors.green
+                                                        : AppTheme.voltYellow,
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
                                       ),
                                     ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                latestRecord != null
-                                    ? "1RM Actual: ${latestRecord.oneRepMax.toStringAsFixed(1)} ${latestRecord.unit}"
-                                    : "Sin 1RM registrado",
-                                style: GoogleFonts.spaceGrotesk(
-                                  color: isCompleted
-                                      ? Colors.green.withOpacity(0.7)
-                                      : latestRecord != null
-                                          ? AppTheme.voltYellow
-                                          : Colors.white38,
-                                  fontSize: 11,
+                                    const SizedBox(width: 4),
+                                    // Botón cambiar ejercicio (solo si no completado)
+                                    if (!isCompleted)
+                                      GestureDetector(
+                                        onTap: () => _showSwapExerciseSheet(
+                                          context, ref, selectedRoutine, exercise, calcNotifier),
+                                        child: const Padding(
+                                          padding: EdgeInsets.all(4),
+                                          child: Icon(Icons.swap_horiz_rounded,
+                                              size: 16, color: Colors.white24),
+                                        ),
+                                      ),
+                                    // Indicador completado
+                                    if (isCompleted)
+                                      const Padding(
+                                        padding: EdgeInsets.only(left: 2),
+                                        child: Icon(Icons.check_circle,
+                                            size: 16, color: Colors.green),
+                                      ),
+                                  ],
                                 ),
-                              ),
-                              if (todayExRecords.isNotEmpty) ...[
-                                const SizedBox(height: 6),
-                                Wrap(
-                                  spacing: 4,
-                                  runSpacing: 4,
-                                  children: List.generate(todayExRecords.length, (idx) {
-                                    final r = todayExRecords[idx];
-                                    return Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: isCompleted
-                                            ? Colors.green.withOpacity(0.1)
-                                            : AppTheme.voltYellow.withOpacity(0.12),
-                                        borderRadius: BorderRadius.circular(4),
-                                        border: Border.all(
+                                const SizedBox(height: 2),
+                                Text(
+                                  latestRecord != null
+                                      ? '1RM Actual: ${latestRecord.oneRepMax.toStringAsFixed(1)} ${latestRecord.unit}'
+                                      : 'Sin 1RM registrado',
+                                  style: GoogleFonts.spaceGrotesk(
+                                    color: isCompleted
+                                        ? Colors.green.withOpacity(0.7)
+                                        : latestRecord != null
+                                            ? AppTheme.voltYellow
+                                            : Colors.white38,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                                if (todayExRecords.isNotEmpty) ...[
+                                  const SizedBox(height: 6),
+                                  Wrap(
+                                    spacing: 4,
+                                    runSpacing: 4,
+                                    children: List.generate(todayExRecords.length, (idx) {
+                                      final r = todayExRecords[idx];
+                                      return Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: isCompleted
+                                              ? Colors.green.withOpacity(0.1)
+                                              : AppTheme.voltYellow.withOpacity(0.12),
+                                          borderRadius: BorderRadius.circular(4),
+                                          border: Border.all(
                                             color: isCompleted
                                                 ? Colors.green.withOpacity(0.3)
                                                 : AppTheme.voltYellow.withOpacity(0.3),
-                                            width: 0.5),
-                                      ),
-                                      child: Text(
-                                        "${r.weight.toStringAsFixed(0)}x${r.reps} (1RM: ${r.oneRepMax.toStringAsFixed(0)}${r.unit})",
-                                        style: GoogleFonts.spaceGrotesk(
-                                          color: isCompleted ? Colors.green : AppTheme.voltYellow,
-                                          fontSize: 9,
-                                          fontWeight: FontWeight.bold,
+                                            width: 0.5,
+                                          ),
                                         ),
-                                      ),
-                                    );
-                                  }),
-                                ),
+                                        child: Text(
+                                          '${r.weight.toStringAsFixed(0)}×${r.reps}  1RM: ${r.oneRepMax.toStringAsFixed(0)} ${r.unit}',
+                                          style: GoogleFonts.spaceGrotesk(
+                                            color: isCompleted ? Colors.green : AppTheme.voltYellow,
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      );
+                                    }),
+                                  ),
+                                ],
                               ],
-                            ],
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 4),
-                        IconButton(
-                          icon: Icon(
-                            isCompleted
-                                ? Icons.check_circle_outline
-                                : isSelected
-                                    ? Icons.check_circle
-                                    : Icons.play_arrow,
-                            color: isCompleted
-                                ? Colors.green
-                                : isSelected
-                                    ? AppTheme.voltYellow
-                                    : Colors.white60,
-                            size: 20,
-                          ),
-                          onPressed: isCompleted
-                              ? null
-                              : () {
-                                  ref.read(currentExerciseNameProvider.notifier).state = exercise.name;
-                                  final historyList = ref.read(historyProvider);
-                                  final exRecords = historyList.where((r) =>
-                                      r.exerciseName.trim().toLowerCase() == exercise.name.trim().toLowerCase());
-                                  if (exRecords.isNotEmpty) {
-                                    final lastRecord = exRecords.first;
-                                    calcNotifier.updateWeight(lastRecord.weight);
-                                    calcNotifier.updateReps(lastRecord.reps);
-                                  } else {
-                                    calcNotifier.updateReps(exercise.reps);
-                                  }
-                                },
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   );
                 },
+                  ),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 8),
+
+          // Botón + agregar ejercicio a la sesión (sin tocar la rutina)
+          Builder(
+            builder: (context) {
+              final day = sortedDays[safeIndex];
+              final sessionExtras = ref.watch(sessionExtraExercisesProvider);
+              final routineExercises = grouped[day]!;
+              final extraExercises = sessionExtras[day] ?? [];
+              final allNames = [...routineExercises, ...extraExercises]
+                  .map((e) => e.name.toLowerCase())
+                  .toSet();
+              return GestureDetector(
+                onTap: () => _showAddSessionExerciseSheet(
+                    context, ref, day, allNames),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  decoration: BoxDecoration(
+                    color: AppTheme.darkCarbon,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                        color: AppTheme.dividerColor,
+                        width: 0.5,
+                        style: BorderStyle.solid),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.add_rounded,
+                          size: 16, color: Colors.white38),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Agregar ejercicio a la sesión',
+                        style: GoogleFonts.spaceGrotesk(
+                          fontSize: 12,
+                          color: Colors.white38,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               );
             },
           ),
@@ -1077,6 +1255,743 @@ class CalculatorScreen extends ConsumerWidget {
               }),
             ),
         ],
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Di\u00e1logo para editar sets/reps de sesi\u00f3n (NO modifica la rutina original)
+  // ─────────────────────────────────────────────────────────────────────────
+  void _showSessionEditDialog(
+    BuildContext context,
+    WidgetRef ref,
+    RoutineExercise exercise,
+    int currentSets,
+    int currentReps,
+  ) {
+    int tempSets = currentSets;
+    int tempReps = currentReps;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: AppTheme.midnightGrey,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: const BorderSide(color: AppTheme.dividerColor),
+          ),
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'AJUSTE DE SESI\u00d3N',
+                style: GoogleFonts.spaceGrotesk(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.electricCyan,
+                  letterSpacing: 1.5,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                exercise.name,
+                style: GoogleFonts.spaceGrotesk(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                'Plan original: ${exercise.sets}\u00d7${exercise.reps} \u2014 Solo afecta esta sesi\u00f3n',
+                style: GoogleFonts.spaceGrotesk(
+                  fontSize: 11,
+                  color: Colors.white38,
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Series
+              _buildStepRow(
+                label: 'Series',
+                value: tempSets,
+                min: 1,
+                max: 20,
+                onDecrement: () => setDialogState(() {
+                  if (tempSets > 1) tempSets--;
+                }),
+                onIncrement: () => setDialogState(() {
+                  if (tempSets < 20) tempSets++;
+                }),
+              ),
+              const SizedBox(height: 16),
+              // Repeticiones
+              _buildStepRow(
+                label: 'Repeticiones',
+                value: tempReps,
+                min: 1,
+                max: 50,
+                onDecrement: () => setDialogState(() {
+                  if (tempReps > 1) tempReps--;
+                }),
+                onIncrement: () => setDialogState(() {
+                  if (tempReps < 50) tempReps++;
+                }),
+              ),
+            ],
+          ),
+          actions: [
+            // Restaurar plan original
+            TextButton(
+              onPressed: () {
+                final overrides =
+                    Map<String, ({int sets, int reps})>.from(
+                        ref.read(sessionOverridesProvider));
+                overrides.remove(exercise.name);
+                ref.read(sessionOverridesProvider.notifier).state =
+                    overrides;
+                Navigator.pop(ctx);
+              },
+              child: const Text('Restaurar',
+                  style: TextStyle(color: Colors.white38)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancelar',
+                  style: TextStyle(color: Colors.white60)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final overrides =
+                    Map<String, ({int sets, int reps})>.from(
+                        ref.read(sessionOverridesProvider));
+                overrides[exercise.name] =
+                    (sets: tempSets, reps: tempReps);
+                ref.read(sessionOverridesProvider.notifier).state =
+                    overrides;
+                Navigator.pop(ctx);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.electricCyan,
+                foregroundColor: AppTheme.darkCarbon,
+              ),
+              child: const Text('Aplicar',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStepRow({
+    required String label,
+    required int value,
+    required int min,
+    required int max,
+    required VoidCallback onDecrement,
+    required VoidCallback onIncrement,
+  }) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.spaceGrotesk(
+            fontSize: 14,
+            color: Colors.white70,
+          ),
+        ),
+        Row(
+          children: [
+            _stepBtn(Icons.remove, onDecrement, value <= min),
+            const SizedBox(width: 12),
+            SizedBox(
+              width: 32,
+              child: Text(
+                '$value',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.spaceGrotesk(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            _stepBtn(Icons.add, onIncrement, value >= max),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _stepBtn(IconData icon, VoidCallback onTap, bool disabled) {
+    return GestureDetector(
+      onTap: disabled ? null : onTap,
+      child: Container(
+        width: 32,
+        height: 32,
+        decoration: BoxDecoration(
+          color: disabled
+              ? AppTheme.darkCarbon
+              : AppTheme.electricCyan.withOpacity(0.12),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: disabled
+                ? AppTheme.dividerColor
+                : AppTheme.electricCyan.withOpacity(0.4),
+          ),
+        ),
+        child: Icon(
+          icon,
+          size: 16,
+          color: disabled ? Colors.white24 : AppTheme.electricCyan,
+        ),
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Bottom-sheet para reemplazar un ejercicio durante la sesi\u00f3n
+  // ─────────────────────────────────────────────────────────────────────────
+  void _showSwapExerciseSheet(
+    BuildContext context,
+    WidgetRef ref,
+    Routine routine,
+    RoutineExercise exercise,
+    CalculatorNotifier calcNotifier,
+  ) {
+    final TextEditingController searchCtrl = TextEditingController();
+    final history = ref.read(historyProvider);
+    final routines = ref.read(routinesProvider);
+
+    // Nombres ya existentes en el día (para validar duplicados)
+    final Map<String, List<RoutineExercise>> grouped2 = {};
+    for (var ex in routine.exercises) {
+      grouped2.putIfAbsent(ex.dayGroup, () => []).add(ex);
+    }
+    final existingNamesInDay = (grouped2[exercise.dayGroup] ?? [])
+        .map((e) => e.name.toLowerCase())
+        .toSet();
+
+    // Universo completo: historial + todos los de todas las rutinas
+    final Set<String> allKnown = {};
+    for (final r in history) {
+      allKnown.add(r.exerciseName.trim());
+    }
+    for (final r in routines) {
+      for (final ex in r.exercises) {
+        allKnown.add(ex.name.trim());
+      }
+    }
+
+    // Ejercicios únicos del historial + rutinas, excluyendo los que ya están en el día de hoy
+    final List<String> universeExercises = allKnown
+        .where((n) => !existingNamesInDay.contains(n.toLowerCase()))
+        .toList()
+      ..sort((a, b) => a.compareTo(b));
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setSheet) {
+            final query = searchCtrl.text.trim().toLowerCase();
+            final filtered = query.isEmpty
+                ? universeExercises
+                : universeExercises
+                    .where((n) => n.toLowerCase().contains(query))
+                    .toList();
+            final bool queryIsNew = query.isNotEmpty &&
+                !universeExercises
+                    .any((n) => n.toLowerCase() == query);
+
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(ctx).viewInsets.bottom,
+              ),
+              child: Container(
+                decoration: const BoxDecoration(
+                  color: AppTheme.midnightGrey,
+                  borderRadius:
+                      BorderRadius.vertical(top: Radius.circular(24)),
+                ),
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Handle
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.white24,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    // Título
+                    Text(
+                      'CAMBIAR EJERCICIO',
+                      style: GoogleFonts.spaceGrotesk(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.voltYellow,
+                        letterSpacing: 1.5,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Reemplazando: ${exercise.name}',
+                      style: GoogleFonts.spaceGrotesk(
+                        fontSize: 13,
+                        color: Colors.white54,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    // Buscador
+                    TextField(
+                      controller: searchCtrl,
+                      autofocus: true,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: InputDecoration(
+                        hintText: 'Buscar o escribir nombre nuevo…',
+                        hintStyle: const TextStyle(color: Colors.white30),
+                        prefixIcon: const Icon(Icons.search,
+                            color: Colors.white38, size: 20),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide:
+                              const BorderSide(color: AppTheme.dividerColor),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide:
+                              const BorderSide(color: AppTheme.voltYellow),
+                        ),
+                        filled: true,
+                        fillColor: AppTheme.darkCarbon,
+                        contentPadding:
+                            const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      onChanged: (_) => setSheet(() {}),
+                    ),
+                    const SizedBox(height: 12),
+                    // Lista de sugerencias + opción "nuevo"
+                    ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxHeight: MediaQuery.of(ctx).size.height * 0.35,
+                      ),
+                      child: ListView(
+                        shrinkWrap: true,
+                        children: [
+                          // Opción crear nuevo si no existe en historial
+                          if (queryIsNew)
+                            _swapOption(
+                              ctx: ctx,
+                              ref: ref,
+                              icon: Icons.add_circle_outline,
+                              iconColor: AppTheme.electricCyan,
+                              label: 'Nuevo: "${searchCtrl.text.trim()}"',
+                              sublabel: 'Agregar ejercicio nuevo',
+                              routine: routine,
+                              oldExercise: exercise,
+                              newName: searchCtrl.text.trim(),
+                              calcNotifier: calcNotifier,
+                              blocked: false,
+                            ),
+                          ...filtered.map(
+                            (name) => _swapOption(
+                              ctx: ctx,
+                              ref: ref,
+                              icon: Icons.fitness_center,
+                              iconColor: Colors.white38,
+                              label: name,
+                              sublabel: 'Del historial/rutinas',
+                              routine: routine,
+                              oldExercise: exercise,
+                              newName: name,
+                              calcNotifier: calcNotifier,
+                              blocked: false,
+                            ),
+                          ),
+                          if (filtered.isEmpty && !queryIsNew)
+                            Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 16),
+                              child: Center(
+                                child: Text(
+                                  'Escribe el nombre del ejercicio nuevo',
+                                  style: GoogleFonts.spaceGrotesk(
+                                      color: Colors.white38, fontSize: 13),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _swapOption({
+    required BuildContext ctx,
+    required WidgetRef ref,
+    required IconData icon,
+    required Color iconColor,
+    required String label,
+    required String sublabel,
+    required Routine routine,
+    required RoutineExercise oldExercise,
+    required String newName,
+    required CalculatorNotifier calcNotifier,
+    bool blocked = false,
+  }) {
+    return InkWell(
+      onTap: blocked ? null : () async {
+        final routinesNotifier = ref.read(routinesProvider.notifier);
+        // 1. Eliminar el ejercicio viejo
+        await routinesNotifier.removeExerciseFromRoutine(
+            routine.id, oldExercise.name);
+        // 2. Insertar el nuevo con los mismos sets/reps/dayGroup
+        await routinesNotifier.addExerciseToRoutine(
+          routine.id,
+          newName.trim(),
+          sets: oldExercise.sets,
+          reps: oldExercise.reps,
+          dayGroup: oldExercise.dayGroup,
+        );
+        // 3. Si el ejercicio activo era el que cambiamos, actualizar el estado
+        if (ref.read(currentExerciseNameProvider) == oldExercise.name) {
+          ref.read(currentExerciseNameProvider.notifier).state = newName.trim();
+          final historyList = ref.read(historyProvider);
+          final exRecords = historyList.where((r) =>
+              r.exerciseName.trim().toLowerCase() ==
+              newName.trim().toLowerCase());
+          if (exRecords.isNotEmpty) {
+            calcNotifier.updateWeight(exRecords.first.weight);
+            calcNotifier.updateReps(exRecords.first.reps);
+          } else {
+            calcNotifier.updateReps(oldExercise.reps);
+          }
+        }
+        if (ctx.mounted) Navigator.pop(ctx);
+        if (ctx.mounted) {
+          ScaffoldMessenger.of(ctx).showSnackBar(
+            SnackBar(
+              content:
+                  Text('"${oldExercise.name}" reemplazado por "$newName"'),
+              backgroundColor: AppTheme.electricCyan,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      },
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: AppTheme.darkCarbon,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppTheme.dividerColor, width: 0.5),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: iconColor, size: 18),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: GoogleFonts.spaceGrotesk(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  Text(
+                    sublabel,
+                    style: GoogleFonts.spaceGrotesk(
+                      fontSize: 11,
+                      color: Colors.white38,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: Colors.white24, size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Bottom-sheet para AGREGAR un ejercicio extra a la sesi\u00f3n (sin tocar rutina)
+  // ─────────────────────────────────────────────────────────────────────────
+  void _showAddSessionExerciseSheet(
+    BuildContext context,
+    WidgetRef ref,
+    String dayGroup,
+    Set<String> existingNamesLower,
+  ) {
+    final TextEditingController searchCtrl = TextEditingController();
+    final history = ref.read(historyProvider);
+    final routines = ref.read(routinesProvider);
+
+    // Universo completo: ejercicios del historial + todos los de todas las rutinas
+    final Set<String> allKnown = {};
+    for (final r in history) {
+      allKnown.add(r.exerciseName.trim());
+    }
+    for (final routine in routines) {
+      for (final ex in routine.exercises) {
+        allKnown.add(ex.name.trim());
+      }
+    }
+
+    final List<String> historyExercises = allKnown
+        .where((n) => !existingNamesLower.contains(n.toLowerCase()))
+        .toList()
+      ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setSheet) {
+            final query = searchCtrl.text.trim().toLowerCase();
+            final filtered = query.isEmpty
+                ? historyExercises
+                : historyExercises
+                    .where((n) => n.toLowerCase().contains(query))
+                    .toList();
+            final bool queryIsNew = query.isNotEmpty &&
+                !historyExercises.any((n) => n.toLowerCase() == query);
+            final bool queryDuplicate = query.isNotEmpty &&
+                existingNamesLower.contains(query);
+
+            return Padding(
+              padding: EdgeInsets.only(
+                  bottom: MediaQuery.of(ctx).viewInsets.bottom),
+              child: Container(
+                decoration: const BoxDecoration(
+                  color: AppTheme.midnightGrey,
+                  borderRadius:
+                      BorderRadius.vertical(top: Radius.circular(24)),
+                ),
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40, height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.white24,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      'AGREGAR A LA SESI\u00d3N',
+                      style: GoogleFonts.spaceGrotesk(
+                        fontSize: 11, fontWeight: FontWeight.bold,
+                        color: AppTheme.electricCyan, letterSpacing: 1.5,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'No modifica tu rutina original',
+                      style: GoogleFonts.spaceGrotesk(
+                          fontSize: 12, color: Colors.white38),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: searchCtrl,
+                      autofocus: true,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: InputDecoration(
+                        hintText: 'Buscar o escribir nombre nuevo\u2026',
+                        hintStyle: const TextStyle(color: Colors.white30),
+                        prefixIcon: const Icon(Icons.search,
+                            color: Colors.white38, size: 20),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide:
+                              const BorderSide(color: AppTheme.dividerColor),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide(
+                            color: queryDuplicate
+                                ? Colors.red
+                                : AppTheme.electricCyan,
+                          ),
+                        ),
+                        filled: true,
+                        fillColor: AppTheme.darkCarbon,
+                        contentPadding:
+                            const EdgeInsets.symmetric(vertical: 12),
+                        suffixIcon: queryDuplicate
+                            ? const Icon(Icons.warning_amber_rounded,
+                                color: Colors.red, size: 18)
+                            : null,
+                      ),
+                      onChanged: (_) => setSheet(() {}),
+                    ),
+                    if (queryDuplicate) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        '\u26a0 Este ejercicio ya est\u00e1 en el d\u00eda',
+                        style: GoogleFonts.spaceGrotesk(
+                            color: Colors.red, fontSize: 12),
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    ConstrainedBox(
+                      constraints: BoxConstraints(
+                          maxHeight: MediaQuery.of(ctx).size.height * 0.35),
+                      child: ListView(
+                        shrinkWrap: true,
+                        children: [
+                          if (queryIsNew && !queryDuplicate)
+                            _addSessionOption(
+                              ctx: ctx,
+                              ref: ref,
+                              icon: Icons.add_circle_outline,
+                              iconColor: AppTheme.electricCyan,
+                              label:
+                                  'Nuevo: "${searchCtrl.text.trim()}"',
+                              sublabel: 'Agregar ejercicio nuevo',
+                              name: searchCtrl.text.trim(),
+                              dayGroup: dayGroup,
+                            ),
+                          ...filtered.map(
+                            (name) => _addSessionOption(
+                              ctx: ctx,
+                              ref: ref,
+                              icon: Icons.fitness_center,
+                              iconColor: Colors.white38,
+                              label: name,
+                              sublabel: 'Del historial',
+                              name: name,
+                              dayGroup: dayGroup,
+                            ),
+                          ),
+                          if (filtered.isEmpty && !queryIsNew)
+                            Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 16),
+                              child: Center(
+                                child: Text(
+                                  'Escribe el nombre del ejercicio a agregar',
+                                  style: GoogleFonts.spaceGrotesk(
+                                      color: Colors.white38, fontSize: 13),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _addSessionOption({
+    required BuildContext ctx,
+    required WidgetRef ref,
+    required IconData icon,
+    required Color iconColor,
+    required String label,
+    required String sublabel,
+    required String name,
+    required String dayGroup,
+  }) {
+    return InkWell(
+      onTap: () {
+        final extras = Map<String, List<RoutineExercise>>.from(
+            ref.read(sessionExtraExercisesProvider));
+        final dayList = List<RoutineExercise>.from(extras[dayGroup] ?? []);
+        dayList.add(RoutineExercise(
+          name: name.trim(),
+          sets: 3,
+          reps: 10,
+          dayGroup: dayGroup,
+        ));
+        extras[dayGroup] = dayList;
+        ref.read(sessionExtraExercisesProvider.notifier).state = extras;
+        if (ctx.mounted) Navigator.pop(ctx);
+        if (ctx.mounted) {
+          ScaffoldMessenger.of(ctx).showSnackBar(
+            SnackBar(
+              content: Text('"$name" agregado a la sesi\u00f3n'),
+              backgroundColor: AppTheme.electricCyan,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      },
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: AppTheme.darkCarbon,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppTheme.dividerColor, width: 0.5),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: iconColor, size: 18),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label,
+                      style: GoogleFonts.spaceGrotesk(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white)),
+                  Text(sublabel,
+                      style: GoogleFonts.spaceGrotesk(
+                          fontSize: 11, color: Colors.white38)),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: Colors.white24, size: 18),
+          ],
+        ),
       ),
     );
   }
