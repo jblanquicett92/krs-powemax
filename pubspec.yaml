@@ -1,6 +1,6 @@
 name: powermax_1rm
 description: A premium, offline-first 1RM Calculator & AI Gym Coach in Flutter.
-version: 1.4.72+12
+version: 1.12.1+12
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
