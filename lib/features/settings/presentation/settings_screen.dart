@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:io';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -8,11 +9,46 @@ import '../../../core/localization/app_localizations.dart';
 import '../state/settings_notifier.dart';
 import '../../../core/constants/version.dart';
 
-class SettingsScreen extends ConsumerWidget {
+class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  int _versionTapCount = 0;
+  bool _isDeveloperModeEnabled = false;
+
+  void _handleVersionTap() {
+    setState(() {
+      _versionTapCount++;
+      debugPrint("[SettingsScreen] Version tapped. Current count: $_versionTapCount/7");
+      
+      // Enviar log también a Crashlytics por si ocurre un crash mientras intentan activar el modo
+      try {
+        FirebaseCrashlytics.instance.log("Developer mode tap count: $_versionTapCount/7");
+      } catch (_) {}
+
+      if (_versionTapCount >= 7) {
+        if (!_isDeveloperModeEnabled) {
+          _isDeveloperModeEnabled = true;
+          debugPrint("[SettingsScreen] 🔥 Developer Mode unlocked!");
+          _showSuccessSnackBar(context, "¡Ahora eres un desarrollador! 🔥 Mode Debug activado");
+        }
+      } else if (_versionTapCount > 2) {
+        final remaining = 7 - _versionTapCount;
+        debugPrint("[SettingsScreen] Taps remaining to unlock developer mode: $remaining");
+        _showSuccessSnackBar(
+          context, 
+          "Estás a $remaining toques de activar el modo desarrollador"
+        );
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final settings = ref.watch(settingsProvider);
     final settingsNotifier = ref.read(settingsProvider.notifier);
 
@@ -98,7 +134,7 @@ class SettingsScreen extends ConsumerWidget {
             _buildSettingTile(
               context,
               icon: Icons.timer_outlined,
-              title: "Descanso entre ejercicios",
+              title: "Descansos",
               trailing: DropdownButton<int>(
                 value: settings.restTimeBetweenExercises,
                 dropdownColor: AppTheme.midnightGrey,
@@ -185,19 +221,26 @@ class SettingsScreen extends ConsumerWidget {
                                 color: Colors.white,
                               ),
                             ),
-                            ref.watch(appVersionProvider).when(
-                              data: (version) => Text(
-                                "Versión $version",
-                                style: const TextStyle(fontSize: 11, color: Colors.white38),
-                              ),
-                              loading: () => const Text(
-                                "Versión ...",
-                                style: TextStyle(fontSize: 11, color: Colors.white38),
-                              ),
-                              error: (err, __) => Text(
-                                "Versión no disponible ($err)",
-                                style: const TextStyle(fontSize: 11, color: Colors.redAccent),
-                                overflow: TextOverflow.ellipsis,
+                            GestureDetector(
+                              onTap: _handleVersionTap,
+                              behavior: HitTestBehavior.opaque,
+                              child: ref.watch(appVersionProvider).when(
+                                data: (version) => Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 4.0),
+                                  child: Text(
+                                    "Versión $version",
+                                    style: const TextStyle(fontSize: 11, color: Colors.white38),
+                                  ),
+                                ),
+                                loading: () => const Text(
+                                  "Versión ...",
+                                  style: TextStyle(fontSize: 11, color: Colors.white38),
+                                ),
+                                error: (err, __) => Text(
+                                  "Versión no disponible ($err)",
+                                  style: const TextStyle(fontSize: 11, color: Colors.redAccent),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               ),
                             ),
                           ],
@@ -250,7 +293,196 @@ class SettingsScreen extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 24),
-          ],
+            
+            if (_isDeveloperModeEnabled) ...[
+              // ── SECCIÓN DEBUG: CRASHLYTICS ──────────────────────────────
+              _buildSectionHeader(context, "🔥 Crashlytics Debug"),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: AppTheme.midnightGrey,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.redAccent.withOpacity(0.4)),
+                ),
+                child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Usa estos botones para verificar que Crashlytics '
+                    'recibe datos. Los crashes fatales se envían al '
+                    'siguiente arranque de la app.',
+                    style: GoogleFonts.spaceGrotesk(
+                      fontSize: 12,
+                      color: AppTheme.textSecondary,
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Botón 1: Log de prueba
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        try {
+                          FirebaseCrashlytics.instance.log(
+                            'Test log from settings screen at ${DateTime.now()}',
+                          );
+                          FirebaseCrashlytics.instance.setCustomKey(
+                            'test_key', 'settings_debug',
+                          );
+                          _showSuccessSnackBar(
+                            context,
+                            '✅ Log y custom key enviados a Crashlytics',
+                          );
+                        } catch (e) {
+                          _showSuccessSnackBar(
+                            context,
+                            '❌ Error: Firebase no está disponible',
+                          );
+                        }
+                      },
+                      icon: const Icon(Icons.note_add, size: 16),
+                      label: const Text('Enviar log de prueba'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppTheme.electricCyan,
+                        side: const BorderSide(color: AppTheme.electricCyan),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        textStyle: GoogleFonts.spaceGrotesk(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+
+                  // Botón 2: Error no-fatal
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        try {
+                          throw Exception(
+                            'Test non-fatal error from PowerMax 1RM settings',
+                          );
+                        } catch (e, stack) {
+                          try {
+                            FirebaseCrashlytics.instance.recordError(
+                              e,
+                              stack,
+                              reason: 'Non-fatal test from settings',
+                              fatal: false,
+                            );
+                            _showSuccessSnackBar(
+                              context,
+                              '⚠️ Error no-fatal enviado a Crashlytics',
+                            );
+                          } catch (ex) {
+                            _showSuccessSnackBar(
+                              context,
+                              '❌ Error: Firebase no está disponible',
+                            );
+                          }
+                        }
+                      },
+                      icon: const Icon(Icons.warning_amber, size: 16),
+                      label: const Text('Enviar error no-fatal'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppTheme.voltYellow,
+                        side: const BorderSide(color: AppTheme.voltYellow),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        textStyle: GoogleFonts.spaceGrotesk(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+
+                  // Botón 3: Crash fatal
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        showDialog(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            backgroundColor: AppTheme.midnightGrey,
+                            title: Text(
+                              '⚠️ Crash de prueba',
+                              style: GoogleFonts.outfit(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            content: Text(
+                              '¡Esto cerrará la app inmediatamente!\n\n'
+                              'El crash se reportará a Firebase Crashlytics '
+                              'cuando la app se abra de nuevo.\n\n'
+                              '¿Continuar?',
+                              style: GoogleFonts.spaceGrotesk(
+                                color: AppTheme.textSecondary,
+                                fontSize: 13,
+                              ),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx),
+                                child: Text(
+                                  'Cancelar',
+                                  style: GoogleFonts.spaceGrotesk(
+                                    color: Colors.white60,
+                                  ),
+                                ),
+                              ),
+                              ElevatedButton(
+                                onPressed: () {
+                                  try {
+                                    FirebaseCrashlytics.instance.crash();
+                                  } catch (e) {
+                                    Navigator.pop(ctx);
+                                    _showSuccessSnackBar(
+                                      context,
+                                      '❌ Error: Firebase no está activo',
+                                    );
+                                  }
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.redAccent,
+                                ),
+                                child: Text(
+                                  'Sí, provocar crash',
+                                  style: GoogleFonts.spaceGrotesk(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.dangerous, size: 16),
+                      label: const Text('Provocar crash fatal (test)'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.redAccent.withOpacity(0.8),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        textStyle: GoogleFonts.spaceGrotesk(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+                ], // Cierra Column children del Container
+              ), // Cierra Column del Container
+            ), // Cierra Container
+          ], // Cierra conditional spread operator
+          const SizedBox(height: 24),
+        ],
         ),
       ),
     );

@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:file_picker/file_picker.dart';
+import 'package:image_picker/image_picker.dart';
+
 import '../../../core/theme/app_theme.dart';
 import '../../settings/state/settings_notifier.dart';
 import 'avatar_helper.dart';
@@ -187,26 +188,78 @@ class _ProfileOnboardingScreenState
   // ────────────────────────────────────────────────
 
   Future<void> _pickProfileImage() async {
-    try {
-      final result = await FilePicker.pickFiles(
-        type: FileType.image,
-        allowMultiple: false,
-      );
-      if (result != null && result.files.single.path != null) {
-        setState(() {
-          _profileImagePath = result.files.single.path!;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No se pudo abrir el selector del sistema. Selecciona un avatar.'),
-            backgroundColor: Colors.redAccent,
-            behavior: SnackBarBehavior.floating,
+    setState(() => _errorMsg = null);
+    
+    // Mostramos un modal elegante de selección de origen
+    final ImageSource? source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: AppTheme.midnightGrey,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Selecciona una foto de perfil',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.outfit(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 20),
+              ListTile(
+                leading: const Icon(Icons.photo_library_rounded, color: AppTheme.voltYellow),
+                title: Text(
+                  'Elegir de la Galería',
+                  style: GoogleFonts.spaceGrotesk(color: Colors.white),
+                ),
+                onTap: () => Navigator.pop(context, ImageSource.gallery),
+              ),
+              ListTile(
+                leading: const Icon(Icons.camera_alt_rounded, color: AppTheme.electricCyan),
+                title: Text(
+                  'Tomar Foto',
+                  style: GoogleFonts.spaceGrotesk(color: Colors.white),
+                ),
+                onTap: () => Navigator.pop(context, ImageSource.camera),
+              ),
+            ],
           ),
-        );
+        ),
+      ),
+    );
+
+    if (source == null) return;
+
+    try {
+      final picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: source,
+        maxWidth: 500,
+        maxHeight: 500,
+        imageQuality: 80,
+      );
+
+      if (image != null) {
+        setState(() {
+          _profileImagePath = image.path;
+          _errorMsg = null;
+        });
+        debugPrint("[Onboarding] Profile image selected successfully: ${image.path}");
       }
+    } catch (e, stack) {
+      debugPrint("[Onboarding] Error choosing profile image: $e");
+      debugPrint(stack.toString());
+      setState(() {
+        _errorMsg = 'No pudimos acceder a la imagen. Verifica los permisos de la aplicación en los Ajustes del teléfono.';
+      });
     }
   }
 

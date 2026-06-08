@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "496214612938",
+    "project_id": "powermax-1rm",
+    "storage_bucket": "powermax-1rm.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:496214612938:android:f443b9f032ea55cea50d33",
+        "android_client_info": {
+          "package_name": "com.krs.powermax1rm"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAcXADxSVWHisfaJwZ_-KvM2MIfhty0XEQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

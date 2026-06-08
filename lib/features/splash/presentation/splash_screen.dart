@@ -134,7 +134,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                   const SizedBox(height: 4),
                   // Subtítulo descriptivo en Space Grotesk
                   Text(
-                    "1RM CALCULATOR & COACH",
+                    "Seguimiento de rutinas & coach inteligente",
                     style: GoogleFonts.spaceGrotesk(
                       fontSize: 10,
                       fontWeight: FontWeight.bold,
