@@ -342,7 +342,7 @@ class CoachNotifier extends StateNotifier<CoachState> {
       }
       systemPrompt += historyContext;
     } else {
-      systemPrompt += " 1RM general del usuario: $r1rm $unit (basado en ${calcState.weight} ${unit} x ${calcState.reps} reps).";
+      systemPrompt += " No hay ejercicio activo seleccionado (modo de consulta General). Evita sugerir pesos o cargas exactas en tus respuestas para ejercicios particulares a menos que el usuario te proporcione explícitamente sus marcas en su mensaje. Aconséjale amablemente seleccionar un ejercicio en la calculadora de 1RM para obtener planes de carga y progresiones personalizadas.";
     }
 
     systemPrompt += " INSTRUCCIÓN CRÍTICA DE INTERACCIÓN: Si recomiendas o sugieres una rutina de las configuradas del usuario, debes incluir obligatoriamente al final de tu mensaje el enlace interactivo con el formato exacto `[Activar rutina: NOMBRE](routine://select?id=ID)` (sustituyendo NOMBRE por el nombre exacto de la rutina y ID por el ID exacto correspondiente de la lista proporcionada, por ejemplo: `default_arnold_split` o `default_push_pull`). No agregues enlaces para ejercicios individuales.";
@@ -548,6 +548,10 @@ class CoachNotifier extends StateNotifier<CoachState> {
             settings.geminiApiKey,
           );
 
+          if (responseText.startsWith("Error al conectar") || responseText.startsWith("Error de conexión")) {
+            throw Exception(responseText);
+          }
+
           print("==================== IA OUTPUT RESPONSE (GEMINI) ====================");
           print("Response: $responseText");
           print("=====================================================================");
@@ -565,15 +569,18 @@ class CoachNotifier extends StateNotifier<CoachState> {
           print("==================== ERROR EN GEMINI API ====================");
           print("Error: $e");
           print("=============================================================");
-          final errorMsg = ChatMessage(
-            text: "Error al llamar a la API de Gemini: $e",
+          
+          final restMsg = ChatMessage(
+            text: "Tu entrenador está tomando un descanso, pronto se pondrá en contacto.",
             isUser: false,
           );
           state = state.copyWith(
-            messages: [...state.messages, errorMsg],
+            messages: [...state.messages, restMsg],
             isThinking: false,
           );
           await _saveConversationsToPrefs();
+          
+          _retryMessage(text, systemPrompt, settings.geminiApiKey, 'gemini', '');
         }
       } else {
         // Hugging Face API Mode
@@ -583,6 +590,10 @@ class CoachNotifier extends StateNotifier<CoachState> {
             state.messages,
             settings.huggingFaceToken,
           );
+
+          if (responseText.startsWith("Error al conectar") || responseText.startsWith("Error de conexión")) {
+            throw Exception(responseText);
+          }
 
           print("==================== IA OUTPUT RESPONSE (HUGGINGFACE) ====================");
           print("Response: $responseText");
@@ -601,21 +612,69 @@ class CoachNotifier extends StateNotifier<CoachState> {
           print("==================== ERROR EN HUGGING FACE API ====================");
           print("Error: $e");
           print("====================================================================");
-          final errorMsg = ChatMessage(
-            text: "Error al llamar a la API de Hugging Face: $e",
+          
+          final restMsg = ChatMessage(
+            text: "Tu entrenador está tomando un descanso, pronto se pondrá en contacto.",
             isUser: false,
           );
           state = state.copyWith(
-            messages: [...state.messages, errorMsg],
+            messages: [...state.messages, restMsg],
             isThinking: false,
           );
           await _saveConversationsToPrefs();
+          
+          _retryMessage(text, systemPrompt, '', 'huggingface', settings.huggingFaceToken);
         }
       }
       return;
     }
 
     _fallbackResponse(text);
+  }
+
+  void _retryMessage(String originalText, String systemPrompt, String apiKey, String provider, String token) async {
+    await Future.delayed(const Duration(seconds: 10));
+
+    try {
+      final String responseText;
+      final cleanHistory = state.messages.where((m) => !m.text.contains("tomando un descanso")).toList();
+
+      if (provider == 'gemini') {
+        responseText = await _callGeminiApi(
+          systemPrompt,
+          cleanHistory,
+          apiKey,
+        );
+      } else {
+        responseText = await _callHuggingFaceApi(
+          systemPrompt,
+          cleanHistory,
+          token,
+        );
+      }
+
+      if (responseText.startsWith("Error al conectar") || responseText.startsWith("Error de conexión")) {
+        _retryMessage(originalText, systemPrompt, apiKey, provider, token);
+      } else {
+        final cleanMessages = state.messages.where((m) => !m.text.contains("tomando un descanso")).toList();
+        state = state.copyWith(
+          messages: [
+            ...cleanMessages,
+            ChatMessage(text: responseText, isUser: false),
+          ],
+        );
+        await _saveConversationsToPrefs();
+
+        final coachLabel = state.selectedCoach == 'cristian' 
+            ? 'Cristian' 
+            : state.selectedCoach == 'ana' 
+                ? 'Ana' 
+                : 'Igor';
+        ref.read(coachNotificationProvider.notifier).state = "¡Tu entrenador $coachLabel ha respondido!";
+      }
+    } catch (_) {
+      _retryMessage(originalText, systemPrompt, apiKey, provider, token);
+    }
   }
 
   // Genera respuestas simuladas inteligentes basadas en el 1RM actual y la personalidad del coach
@@ -631,6 +690,21 @@ class CoachNotifier extends StateNotifier<CoachState> {
       }
     }
     
+    final isGeneral = state.activeExercise == 'General';
+    final exName = isGeneral ? 'tu ejercicio' : state.activeExercise;
+    final w1RMText = isGeneral ? '' : ' de $active1RM $unit';
+
+    final String weight75 = isGeneral ? 'el 75% de tu 1RM' : '${(active1RM * 0.75).toStringAsFixed(1)} $unit';
+    final String weight78 = isGeneral ? 'el 78% de tu 1RM' : '${(active1RM * 0.78).toStringAsFixed(1)} $unit';
+    final String weight88 = isGeneral ? 'el 88% de tu 1RM' : '${(active1RM * 0.88).toStringAsFixed(1)} $unit';
+    final String weight65 = isGeneral ? 'el 65% de tu 1RM' : '${(active1RM * 0.65).toStringAsFixed(1)} $unit';
+    final String weight50 = isGeneral ? 'el 50% de tu 1RM' : '${(active1RM * 0.5).toStringAsFixed(1)} $unit';
+    final String weight70 = isGeneral ? 'el 70% de tu 1RM' : '${(active1RM * 0.7).toStringAsFixed(1)} $unit';
+    final String weight72_80 = isGeneral ? 'el 72-80% de tu 1RM' : '${(active1RM * 0.72).toStringAsFixed(1)} a ${(active1RM * 0.8).toStringAsFixed(1)} $unit';
+    final String weight85_92 = isGeneral ? 'el 85-92% de tu 1RM' : '${(active1RM * 0.85).toStringAsFixed(1)} a ${(active1RM * 0.92).toStringAsFixed(1)} $unit';
+    final String weight60 = isGeneral ? 'el 60% de tu 1RM' : '${(active1RM * 0.6).toStringAsFixed(1)} $unit';
+    final String weight80 = isGeneral ? 'el 80% de tu 1RM' : '${(active1RM * 0.8).toStringAsFixed(1)} $unit';
+
     String reply = "";
     final queryLower = userQuery.trim().toLowerCase();
 
@@ -938,3 +1012,6 @@ class CoachNotifier extends StateNotifier<CoachState> {
 final coachProvider = StateNotifierProvider<CoachNotifier, CoachState>((ref) {
   return CoachNotifier(ref);
 });
+
+// Proveedor para notificaciones in-app de respuestas del coach
+final coachNotificationProvider = StateProvider<String?>((ref) => null);

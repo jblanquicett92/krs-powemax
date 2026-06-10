@@ -18,6 +18,8 @@ class SettingsState {
   final int selectedBeepSound; // 1, 2, 3
   final int restTimeBetweenExercises; // in seconds
   final String selectedRoutineId; // new: selected routine of the day
+  final String selectedExerciseName; // active exercise
+  final int selectedDayIndex; // selected day of routine
   final String aiMode; // 'local' or 'online'
   final String geminiApiKey;
   final String onlineProvider; // 'gemini' or 'huggingface'
@@ -45,6 +47,8 @@ class SettingsState {
     required this.selectedBeepSound,
     required this.restTimeBetweenExercises,
     required this.selectedRoutineId,
+    required this.selectedExerciseName,
+    required this.selectedDayIndex,
     required this.aiMode,
     required this.geminiApiKey,
     required this.onlineProvider,
@@ -70,6 +74,8 @@ class SettingsState {
     int? selectedBeepSound,
     int? restTimeBetweenExercises,
     String? selectedRoutineId,
+    String? selectedExerciseName,
+    int? selectedDayIndex,
     String? aiMode,
     String? geminiApiKey,
     String? onlineProvider,
@@ -94,6 +100,8 @@ class SettingsState {
       selectedBeepSound: selectedBeepSound ?? this.selectedBeepSound,
       restTimeBetweenExercises: restTimeBetweenExercises ?? this.restTimeBetweenExercises,
       selectedRoutineId: selectedRoutineId ?? this.selectedRoutineId,
+      selectedExerciseName: selectedExerciseName ?? this.selectedExerciseName,
+      selectedDayIndex: selectedDayIndex ?? this.selectedDayIndex,
       aiMode: aiMode ?? this.aiMode,
       geminiApiKey: geminiApiKey ?? this.geminiApiKey,
       onlineProvider: onlineProvider ?? this.onlineProvider,
@@ -122,6 +130,8 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
           selectedBeepSound: 1,
           restTimeBetweenExercises: 90,
           selectedRoutineId: '',
+          selectedExerciseName: '',
+          selectedDayIndex: 0,
           aiMode: 'online',
           geminiApiKey: _defaultApiKey,
           onlineProvider: 'gemini', // Default to gemini (Google key)
@@ -231,6 +241,8 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
     final String hfTokenObf = prefs.getString(_keyHuggingFaceToken) ?? '';
     final String hfToken = hfTokenObf.isNotEmpty ? _deobfuscateXor(hfTokenObf) : '';
     final bool profileDone = prefs.getBool(_keyProfileSetupDone) ?? false;
+    final String selEx = prefs.getString('settings_selected_exercise') ?? '';
+    final int selDayIdx = prefs.getInt('settings_selected_day_idx') ?? 0;
     
     state = SettingsState(
       language: lang,
@@ -249,6 +261,8 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
       selectedBeepSound: beepS,
       restTimeBetweenExercises: restT,
       selectedRoutineId: selRoutine,
+      selectedExerciseName: selEx,
+      selectedDayIndex: selDayIdx,
       aiMode: aiMode,
       geminiApiKey: geminiApiKey,
       onlineProvider: onlineProv,
@@ -405,6 +419,18 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyProfileSetupDone, value);
     state = state.copyWith(profileSetupDone: value);
+  }
+
+  Future<void> setSelectedExerciseName(String name) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('settings_selected_exercise', name);
+    state = state.copyWith(selectedExerciseName: name);
+  }
+
+  Future<void> setSelectedDayIndex(int index) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('settings_selected_day_idx', index);
+    state = state.copyWith(selectedDayIndex: index);
   }
 }
 

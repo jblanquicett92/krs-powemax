@@ -1,6 +1,6 @@
 name: powermax_1rm
 description: A premium, offline-first 1RM Calculator & AI Gym Coach in Flutter.
-version: 1.17.1+12
+version: 1.18.1+12
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
@@ -43,6 +43,7 @@ flutter_launcher_icons:
   android: "launcher_icon"
   ios: true
   image_path: "assets/logo_no_background.png"
+  remove_alpha_ios: true
   adaptive_icon_background: "#0d0d0d" # Fondo oscuro premium que combina con tu tema
   adaptive_icon_foreground: "assets/logo_no_background.png"
 

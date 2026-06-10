@@ -2,51 +2,254 @@
   "default_push_pull": {
     "name": "Push/Pull/Legs",
     "exercises": [
-      { "name": "Press de banca con barra", "sets": 4, "reps": 8, "dayGroup": "Push (Empuje/Cuádriceps)" },
-      { "name": "Press inclinado con mancuernas", "sets": 3, "reps": 10, "dayGroup": "Push (Empuje/Cuádriceps)" },
-      { "name": "Press militar (hombros)", "sets": 3, "reps": 10, "dayGroup": "Push (Empuje/Cuádriceps)" },
-      { "name": "Fondos en paralelas", "sets": 3, "reps": 12, "dayGroup": "Push (Empuje/Cuádriceps)" },
-      { "name": "Extensiones de tríceps en polea", "sets": 3, "reps": 15, "dayGroup": "Push (Empuje/Cuádriceps)" },
-      { "name": "Sentadilla con barra", "sets": 4, "reps": 8, "dayGroup": "Push (Empuje/Cuádriceps)" },
-      { "name": "Prensa de piernas", "sets": 3, "reps": 12, "dayGroup": "Push (Empuje/Cuádriceps)" },
-      { "name": "Dominadas", "sets": 4, "reps": 10, "dayGroup": "Pull (Jalón/Isquios)" },
-      { "name": "Remo con barra", "sets": 4, "reps": 10, "dayGroup": "Pull (Jalón/Isquios)" },
-      { "name": "Face pulls", "sets": 3, "reps": 15, "dayGroup": "Pull (Jalón/Isquios)" },
-      { "name": "Curl de bíceps con barra", "sets": 3, "reps": 12, "dayGroup": "Pull (Jalón/Isquios)" },
-      { "name": "Curl de bíceps martillo", "sets": 3, "reps": 12, "dayGroup": "Pull (Jalón/Isquios)" },
-      { "name": "Peso muerto rumano", "sets": 4, "reps": 10, "dayGroup": "Pull (Jalón/Isquios)" },
-      { "name": "Curl femoral tumbado", "sets": 3, "reps": 12, "dayGroup": "Pull (Jalón/Isquios)" },
-      { "name": "Sentadilla Hack", "sets": 4, "reps": 10, "dayGroup": "Legs (Enfoque Pierna)" },
-      { "name": "Zancadas (Lunges)", "sets": 3, "reps": 12, "dayGroup": "Legs (Enfoque Pierna)" },
-      { "name": "Extensiones de pierna", "sets": 3, "reps": 15, "dayGroup": "Legs (Enfoque Pierna)" },
-      { "name": "Hip Thrust", "sets": 4, "reps": 10, "dayGroup": "Legs (Enfoque Pierna)" },
-      { "name": "Elevación de talones (gemelos)", "sets": 4, "reps": 15, "dayGroup": "Legs (Enfoque Pierna)" },
-      { "name": "Abdominales en polea", "sets": 3, "reps": 20, "dayGroup": "Legs (Enfoque Pierna)" }
+      {
+        "name": "Press de banca con barra",
+        "sets": 4,
+        "reps": 8,
+        "dayGroup": "Push (Empuje/Cuádriceps)"
+      },
+      {
+        "name": "Press inclinado con mancuernas",
+        "sets": 3,
+        "reps": 10,
+        "dayGroup": "Push (Empuje/Cuádriceps)"
+      },
+      {
+        "name": "Press militar (hombros)",
+        "sets": 3,
+        "reps": 10,
+        "dayGroup": "Push (Empuje/Cuádriceps)"
+      },
+      {
+        "name": "Fondos en paralelas",
+        "sets": 3,
+        "reps": 12,
+        "dayGroup": "Push (Empuje/Cuádriceps)",
+        "isBodyweight": true
+      },
+      {
+        "name": "Extensiones de tríceps en polea",
+        "sets": 3,
+        "reps": 15,
+        "dayGroup": "Push (Empuje/Cuádriceps)"
+      },
+      {
+        "name": "Sentadilla con barra",
+        "sets": 4,
+        "reps": 8,
+        "dayGroup": "Push (Empuje/Cuádriceps)"
+      },
+      {
+        "name": "Prensa de piernas",
+        "sets": 3,
+        "reps": 12,
+        "dayGroup": "Push (Empuje/Cuádriceps)"
+      },
+      {
+        "name": "Dominadas",
+        "sets": 4,
+        "reps": 10,
+        "dayGroup": "Pull (Jalón/Isquios)",
+        "isBodyweight": true
+      },
+      {
+        "name": "Remo con barra",
+        "sets": 4,
+        "reps": 10,
+        "dayGroup": "Pull (Jalón/Isquios)"
+      },
+      {
+        "name": "Face pulls",
+        "sets": 3,
+        "reps": 15,
+        "dayGroup": "Pull (Jalón/Isquios)"
+      },
+      {
+        "name": "Curl de bíceps con barra",
+        "sets": 3,
+        "reps": 12,
+        "dayGroup": "Pull (Jalón/Isquios)"
+      },
+      {
+        "name": "Curl de bíceps martillo",
+        "sets": 3,
+        "reps": 12,
+        "dayGroup": "Pull (Jalón/Isquios)"
+      },
+      {
+        "name": "Peso muerto rumano",
+        "sets": 4,
+        "reps": 10,
+        "dayGroup": "Pull (Jalón/Isquios)"
+      },
+      {
+        "name": "Curl femoral tumbado",
+        "sets": 3,
+        "reps": 12,
+        "dayGroup": "Pull (Jalón/Isquios)"
+      },
+      {
+        "name": "Sentadilla Hack",
+        "sets": 4,
+        "reps": 10,
+        "dayGroup": "Legs (Enfoque Pierna)"
+      },
+      {
+        "name": "Zancadas (Lunges)",
+        "sets": 3,
+        "reps": 12,
+        "dayGroup": "Legs (Enfoque Pierna)"
+      },
+      {
+        "name": "Extensiones de pierna",
+        "sets": 3,
+        "reps": 15,
+        "dayGroup": "Legs (Enfoque Pierna)"
+      },
+      {
+        "name": "Hip Thrust",
+        "sets": 4,
+        "reps": 10,
+        "dayGroup": "Legs (Enfoque Pierna)"
+      },
+      {
+        "name": "Elevación de talones (gemelos)",
+        "sets": 4,
+        "reps": 15,
+        "dayGroup": "Legs (Enfoque Pierna)"
+      },
+      {
+        "name": "Abdominales en polea",
+        "sets": 3,
+        "reps": 20,
+        "dayGroup": "Legs (Enfoque Pierna)"
+      }
     ]
   },
   "default_arnold_split": {
     "name": "Arnold Split Completa",
     "exercises": [
-      { "name": "Press de banca", "sets": 4, "reps": 10, "dayGroup": "Día A (Pecho/Espalda)" },
-      { "name": "Press inclinado mancuernas", "sets": 3, "reps": 12, "dayGroup": "Día A (Pecho/Espalda)" },
-      { "name": "Aperturas planas", "sets": 3, "reps": 12, "dayGroup": "Día A (Pecho/Espalda)" },
-      { "name": "Dominadas", "sets": 4, "reps": 8, "dayGroup": "Día A (Pecho/Espalda)" },
-      { "name": "Remo con mancuerna", "sets": 4, "reps": 10, "dayGroup": "Día A (Pecho/Espalda)" },
-      { "name": "Jalón al pecho agarre neutro", "sets": 3, "reps": 12, "dayGroup": "Día A (Pecho/Espalda)" },
-      { "name": "Pullover en polea", "sets": 3, "reps": 15, "dayGroup": "Día A (Pecho/Espalda)" },
-      { "name": "Press militar con mancuernas", "sets": 4, "reps": 10, "dayGroup": "Día B (Hombros/Brazos)" },
-      { "name": "Elevaciones laterales", "sets": 4, "reps": 15, "dayGroup": "Día B (Hombros/Brazos)" },
-      { "name": "Elevaciones frontales", "sets": 3, "reps": 12, "dayGroup": "Día B (Hombros/Brazos)" },
-      { "name": "Pájaros (deltoides posterior)", "sets": 3, "reps": 15, "dayGroup": "Día B (Hombros/Brazos)" },
-      { "name": "Curl de bíceps inclinado", "sets": 3, "reps": 12, "dayGroup": "Día B (Hombros/Brazos)" },
-      { "name": "Curl predicador", "sets": 3, "reps": 12, "dayGroup": "Día B (Hombros/Brazos)" },
-      { "name": "Copa de tríceps", "sets": 3, "reps": 12, "dayGroup": "Día B (Hombros/Brazos)" },
-      { "name": "Press francés", "sets": 3, "reps": 12, "dayGroup": "Día B (Hombros/Brazos)" },
-      { "name": "Sentadilla libre", "sets": 4, "reps": 10, "dayGroup": "Día C (Piernas)" },
-      { "name": "Prensa de piernas", "sets": 3, "reps": 12, "dayGroup": "Día C (Piernas)" },
-      { "name": "Zancadas con mancuernas", "sets": 3, "reps": 12, "dayGroup": "Día C (Piernas)" },
-      { "name": "Curl femoral sentado", "sets": 3, "reps": 12, "dayGroup": "Día C (Piernas)" },
-      { "name": "Elevación de talones sentado", "sets": 4, "reps": 15, "dayGroup": "Día C (Piernas)" }
+      {
+        "name": "Press de banca",
+        "sets": 4,
+        "reps": 10,
+        "dayGroup": "Día A (Pecho/Espalda)"
+      },
+      {
+        "name": "Press inclinado mancuernas",
+        "sets": 3,
+        "reps": 12,
+        "dayGroup": "Día A (Pecho/Espalda)"
+      },
+      {
+        "name": "Aperturas planas",
+        "sets": 3,
+        "reps": 12,
+        "dayGroup": "Día A (Pecho/Espalda)"
+      },
+      {
+        "name": "Dominadas",
+        "sets": 4,
+        "reps": 8,
+        "dayGroup": "Día A (Pecho/Espalda)",
+        "isBodyweight": true
+      },
+      {
+        "name": "Remo con mancuerna",
+        "sets": 4,
+        "reps": 10,
+        "dayGroup": "Día A (Pecho/Espalda)"
+      },
+      {
+        "name": "Jalón al pecho agarre neutro",
+        "sets": 3,
+        "reps": 12,
+        "dayGroup": "Día A (Pecho/Espalda)"
+      },
+      {
+        "name": "Pullover en polea",
+        "sets": 3,
+        "reps": 15,
+        "dayGroup": "Día A (Pecho/Espalda)"
+      },
+      {
+        "name": "Press militar con mancuernas",
+        "sets": 4,
+        "reps": 10,
+        "dayGroup": "Día B (Hombros/Brazos)"
+      },
+      {
+        "name": "Elevaciones laterales",
+        "sets": 4,
+        "reps": 15,
+        "dayGroup": "Día B (Hombros/Brazos)"
+      },
+      {
+        "name": "Elevaciones frontales",
+        "sets": 3,
+        "reps": 12,
+        "dayGroup": "Día B (Hombros/Brazos)"
+      },
+      {
+        "name": "Pájaros (deltoides posterior)",
+        "sets": 3,
+        "reps": 15,
+        "dayGroup": "Día B (Hombros/Brazos)"
+      },
+      {
+        "name": "Curl de bíceps inclinado",
+        "sets": 3,
+        "reps": 12,
+        "dayGroup": "Día B (Hombros/Brazos)"
+      },
+      {
+        "name": "Curl predicador",
+        "sets": 3,
+        "reps": 12,
+        "dayGroup": "Día B (Hombros/Brazos)"
+      },
+      {
+        "name": "Copa de tríceps",
+        "sets": 3,
+        "reps": 12,
+        "dayGroup": "Día B (Hombros/Brazos)"
+      },
+      {
+        "name": "Press francés",
+        "sets": 3,
+        "reps": 12,
+        "dayGroup": "Día B (Hombros/Brazos)"
+      },
+      {
+        "name": "Sentadilla libre",
+        "sets": 4,
+        "reps": 10,
+        "dayGroup": "Día C (Piernas)"
+      },
+      {
+        "name": "Prensa de piernas",
+        "sets": 3,
+        "reps": 12,
+        "dayGroup": "Día C (Piernas)"
+      },
+      {
+        "name": "Zancadas con mancuernas",
+        "sets": 3,
+        "reps": 12,
+        "dayGroup": "Día C (Piernas)"
+      },
+      {
+        "name": "Curl femoral sentado",
+        "sets": 3,
+        "reps": 12,
+        "dayGroup": "Día C (Piernas)"
+      },
+      {
+        "name": "Elevación de talones sentado",
+        "sets": 4,
+        "reps": 15,
+        "dayGroup": "Día C (Piernas)"
+      }
     ]
   }
 }

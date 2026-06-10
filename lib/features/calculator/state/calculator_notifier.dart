@@ -1,5 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../settings/state/settings_notifier.dart';
+import '../../profile/state/routines_notifier.dart';
+import '../../profile/data/routine.dart';
+import '../../history/state/history_notifier.dart';
 
 class TrainingZone {
   final int percentage;
@@ -60,6 +63,35 @@ class CalculatorNotifier extends StateNotifier<CalculatorState> {
     final defaultFormula = ref.read(settingsProvider).defaultFormula;
     state = state.copyWith(formula: defaultFormula);
     calculate();
+
+    // Escuchar cambios en la selección de ejercicio para recalcular e inicializar peso si es corporal
+    ref.listen<SettingsState>(settingsProvider, (previous, next) {
+      if (previous?.selectedExerciseName != next.selectedExerciseName) {
+        bool isBodyweight = false;
+        final routines = ref.read(routinesProvider);
+        if (next.selectedExerciseName.isNotEmpty && routines.isNotEmpty) {
+          final selectedRoutine = routines.firstWhere(
+            (r) => r.id == next.selectedRoutineId,
+            orElse: () => routines.first,
+          );
+          final exercise = selectedRoutine.exercises.firstWhere(
+            (e) => e.name.toLowerCase() == next.selectedExerciseName.toLowerCase(),
+            orElse: () => RoutineExercise(name: '', sets: 0, reps: 0),
+          );
+          isBodyweight = exercise.name.isNotEmpty && exercise.isBodyweight;
+        }
+
+        if (isBodyweight) {
+          final historyList = ref.read(historyProvider);
+          final hasRecords = historyList.any((r) =>
+              r.exerciseName.trim().toLowerCase() == next.selectedExerciseName.trim().toLowerCase());
+          if (!hasRecords) {
+            state = state.copyWith(weight: 0.0);
+          }
+        }
+        calculate();
+      }
+    });
   }
 
   void updateWeight(double newWeight) {
@@ -82,24 +114,68 @@ class CalculatorNotifier extends StateNotifier<CalculatorState> {
     final w = state.weight;
     final r = state.reps;
 
-    if (w <= 0 || r <= 0) {
-      state = state.copyWith(calculated1RM: 0.0, trainingZones: []);
-      return;
+    final activeExerciseName = ref.read(settingsProvider).selectedExerciseName;
+    final routines = ref.read(routinesProvider);
+    final selectedRoutineId = ref.read(settingsProvider).selectedRoutineId;
+
+    bool isBodyweight = false;
+    if (activeExerciseName.isNotEmpty && routines.isNotEmpty) {
+      final selectedRoutine = routines.firstWhere(
+        (r) => r.id == selectedRoutineId,
+        orElse: () => routines.first,
+      );
+      final exercise = selectedRoutine.exercises.firstWhere(
+        (e) => e.name.toLowerCase() == activeExerciseName.toLowerCase(),
+        orElse: () => RoutineExercise(name: '', sets: 0, reps: 0),
+      );
+      isBodyweight = exercise.name.isNotEmpty && exercise.isBodyweight;
     }
 
-    if (r == 1) {
-      // 1 repetición es directamente el 1RM
-      r1rm = w;
-    } else {
-      if (state.formula == 'epley') {
-        r1rm = w * (1 + r / 30.0);
+    if (isBodyweight) {
+      final userWeight = ref.read(settingsProvider).userWeight;
+      final totalWeight = userWeight + w;
+
+      if (totalWeight <= 0 || r <= 0) {
+        state = state.copyWith(calculated1RM: 0.0, trainingZones: []);
+        return;
+      }
+
+      double total1RM = 0.0;
+      if (r == 1) {
+        total1RM = totalWeight;
       } else {
-        // Brzycki (segura hasta unas 10-12 reps)
-        double divisor = 1.0278 - (0.0278 * r);
-        if (divisor > 0) {
-          r1rm = w / divisor;
+        if (state.formula == 'epley') {
+          total1RM = totalWeight * (1 + r / 30.0);
         } else {
-          r1rm = w * (1 + r / 30.0); // Respaldo
+          double divisor = 1.0278 - (0.0278 * r);
+          if (divisor > 0) {
+            total1RM = totalWeight / divisor;
+          } else {
+            total1RM = totalWeight * (1 + r / 30.0);
+          }
+        }
+      }
+      r1rm = total1RM;
+    } else {
+      if (w <= 0 || r <= 0) {
+        state = state.copyWith(calculated1RM: 0.0, trainingZones: []);
+        return;
+      }
+
+      if (r == 1) {
+        // 1 repetición es directamente el 1RM
+        r1rm = w;
+      } else {
+        if (state.formula == 'epley') {
+          r1rm = w * (1 + r / 30.0);
+        } else {
+          // Brzycki (segura hasta unas 10-12 reps)
+          double divisor = 1.0278 - (0.0278 * r);
+          if (divisor > 0) {
+            r1rm = w / divisor;
+          } else {
+            r1rm = w * (1 + r / 30.0); // Respaldo
+          }
         }
       }
     }

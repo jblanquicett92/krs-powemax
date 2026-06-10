@@ -8,8 +8,9 @@ import 'features/calculator/presentation/calculator_screen.dart';
 import 'features/history/presentation/history_screen.dart';
 import 'features/ai_coach/presentation/coach_chat_screen.dart';
 import 'features/settings/presentation/settings_screen.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'features/profile/presentation/profile_screen.dart';
-import 'features/splash/presentation/splash_screen.dart';
+import 'features/ai_coach/state/coach_notifier.dart';
 
 class MyApp extends ConsumerWidget {
   const MyApp({super.key});
@@ -35,7 +36,7 @@ class MyApp extends ConsumerWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      home: const SplashScreen(),
+      home: const DashboardScreen(),
     );
   }
 }
@@ -49,6 +50,7 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   int _currentIndex = 0;
+  late PageController _pageController;
 
   // Lista de pantallas principales de la aplicación
   final List<Widget> _screens = const [
@@ -59,13 +61,71 @@ class _DashboardScreenState extends State<DashboardScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(initialPage: _currentIndex);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     // Usamos Consumer para poder leer y actualizar estados en los textos traducidos
     return Consumer(
       builder: (context, ref, child) {
+        // Escucha notificaciones del coach de IA para mostrarlas en segundo plano
+        ref.listen<String?>(coachNotificationProvider, (previous, next) {
+          if (next != null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    const Icon(Icons.psychology, color: AppTheme.voltYellow),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        next,
+                        style: GoogleFonts.spaceGrotesk(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                backgroundColor: AppTheme.midnightGrey,
+                behavior: SnackBarBehavior.floating,
+                duration: const Duration(seconds: 4),
+                action: SnackBarAction(
+                  label: "VER CHAT",
+                  textColor: AppTheme.voltYellow,
+                  onPressed: () {
+                    setState(() {
+                      _currentIndex = 2;
+                    });
+                    _pageController.animateToPage(
+                      2,
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeInOut,
+                    );
+                  },
+                ),
+              ),
+            );
+            // Reset state
+            ref.read(coachNotificationProvider.notifier).state = null;
+          }
+        });
+
         return Scaffold(
-          body: IndexedStack(
-            index: _currentIndex,
+          body: PageView(
+            controller: _pageController,
+            physics: const NeverScrollableScrollPhysics(),
             children: _screens,
           ),
           bottomNavigationBar: Theme(
@@ -85,6 +145,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   setState(() {
                     _currentIndex = index;
                   });
+                  _pageController.animateToPage(
+                    index,
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeInOut,
+                  );
                 },
                 backgroundColor: AppTheme.midnightGrey,
                 indicatorColor: AppTheme.voltYellow.withOpacity(0.15),

@@ -430,7 +430,7 @@ class _CoachChatScreenState extends ConsumerState<CoachChatScreen> {
                           );
                         } else if (href.startsWith('exercise://select?name=')) {
                           final name = Uri.decodeComponent(href.replaceFirst('exercise://select?name=', ''));
-                          ref.read(currentExerciseNameProvider.notifier).state = name;
+                          ref.read(settingsProvider.notifier).setSelectedExerciseName(name);
                           
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(

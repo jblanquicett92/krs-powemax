@@ -67,6 +67,7 @@ class RoutinesNotifier extends StateNotifier<List<Routine>> {
             sets: m['sets'] as int,
             reps: m['reps'] as int,
             dayGroup: m['dayGroup'] as String,
+            isBodyweight: m['isBodyweight'] as bool? ?? false,
           );
         }).toList();
 
@@ -90,13 +91,13 @@ class RoutinesNotifier extends StateNotifier<List<Routine>> {
           exercises: [
             RoutineExercise(name: 'Press de banca con barra', sets: 4, reps: 8, dayGroup: 'Empuje A (Enfoque fuerza)'),
             RoutineExercise(name: 'Press militar (hombros)', sets: 3, reps: 10, dayGroup: 'Empuje A (Enfoque fuerza)'),
-            RoutineExercise(name: 'Fondos en paralelas (o máquina)', sets: 3, reps: 12, dayGroup: 'Empuje A (Enfoque fuerza)'),
+            RoutineExercise(name: 'Fondos en paralelas (o máquina)', sets: 3, reps: 12, dayGroup: 'Empuje A (Enfoque fuerza)', isBodyweight: true),
             RoutineExercise(name: 'Extensiones de tríceps en polea', sets: 3, reps: 15, dayGroup: 'Empuje A (Enfoque fuerza)'),
             RoutineExercise(name: 'Press inclinado con mancuernas', sets: 4, reps: 12, dayGroup: 'Empuje B (Enfoque hipertrofia)'),
             RoutineExercise(name: 'Elevaciones laterales (hombros)', sets: 4, reps: 15, dayGroup: 'Empuje B (Enfoque hipertrofia)'),
             RoutineExercise(name: 'Press máquina o aperturas con poleas', sets: 3, reps: 15, dayGroup: 'Empuje B (Enfoque hipertrofia)'),
             RoutineExercise(name: 'Press francés (tríceps con barra Z)', sets: 3, reps: 12, dayGroup: 'Empuje B (Enfoque hipertrofia)'),
-            RoutineExercise(name: 'Dominadas (o jalón al pecho en polea)', sets: 4, reps: 10, dayGroup: 'Jalón A (Enfoque fuerza/amplitud)'),
+            RoutineExercise(name: 'Dominadas (o jalón al pecho en polea)', sets: 4, reps: 10, dayGroup: 'Jalón A (Enfoque fuerza/amplitud)', isBodyweight: true),
             RoutineExercise(name: 'Remo con barra (agarre supino o prono)', sets: 4, reps: 10, dayGroup: 'Jalón A (Enfoque fuerza/amplitud)'),
             RoutineExercise(name: 'Face pulls (hombro posterior)', sets: 3, reps: 15, dayGroup: 'Jalón A (Enfoque fuerza/amplitud)'),
             RoutineExercise(name: 'Curl de bíceps con barra', sets: 3, reps: 12, dayGroup: 'Jalón A (Enfoque fuerza/amplitud)'),
@@ -114,7 +115,7 @@ class RoutinesNotifier extends StateNotifier<List<Routine>> {
           exercises: [
             RoutineExercise(name: 'Press de Banca', sets: 4, reps: 10, dayGroup: 'Día A (Pecho/Espalda)'),
             RoutineExercise(name: 'Aperturas Planas', sets: 3, reps: 12, dayGroup: 'Día A (Pecho/Espalda)'),
-            RoutineExercise(name: 'Dominadas', sets: 4, reps: 8, dayGroup: 'Día A (Pecho/Espalda)'),
+            RoutineExercise(name: 'Dominadas', sets: 4, reps: 8, dayGroup: 'Día A (Pecho/Espalda)', isBodyweight: true),
             RoutineExercise(name: 'Remo con Mancuerna', sets: 4, reps: 10, dayGroup: 'Día A (Pecho/Espalda)'),
             RoutineExercise(name: 'Press Militar con Mancuernas', sets: 4, reps: 10, dayGroup: 'Día B (Hombros/Brazos)'),
             RoutineExercise(name: 'Elevaciones Laterales', sets: 4, reps: 15, dayGroup: 'Día B (Hombros/Brazos)'),
@@ -255,7 +256,7 @@ class RoutinesNotifier extends StateNotifier<List<Routine>> {
     await _saveToPrefs(updated);
   }
 
-  Future<void> addExerciseToRoutine(String routineId, String exerciseName, {int sets = 4, int reps = 10, String dayGroup = 'Día A'}) async {
+  Future<void> addExerciseToRoutine(String routineId, String exerciseName, {int sets = 4, int reps = 10, String dayGroup = 'Día A', bool isBodyweight = false}) async {
     final cleanName = exerciseName.trim();
     if (cleanName.isEmpty) return;
 
@@ -265,7 +266,13 @@ class RoutinesNotifier extends StateNotifier<List<Routine>> {
         if (!contains) {
           final updatedExercises = [
             ...routine.exercises,
-            RoutineExercise(name: cleanName, sets: sets, reps: reps, dayGroup: dayGroup.trim().isEmpty ? 'Día A' : dayGroup.trim()),
+            RoutineExercise(
+              name: cleanName,
+              sets: sets,
+              reps: reps,
+              dayGroup: dayGroup.trim().isEmpty ? 'Día A' : dayGroup.trim(),
+              isBodyweight: isBodyweight,
+            ),
           ];
           return routine.copyWith(exercises: updatedExercises);
         }
@@ -300,7 +307,7 @@ class RoutinesNotifier extends StateNotifier<List<Routine>> {
     await _saveToPrefs(state);
   }
 
-  Future<void> updateExerciseSetsReps(String routineId, String exerciseName, int sets, int reps, {String? dayGroup}) async {
+  Future<void> updateExerciseSetsReps(String routineId, String exerciseName, int sets, int reps, {String? dayGroup, bool? isBodyweight}) async {
     state = state.map((routine) {
       if (routine.id == routineId) {
         final updatedExercises = routine.exercises.map((e) {
@@ -309,6 +316,7 @@ class RoutinesNotifier extends StateNotifier<List<Routine>> {
               sets: sets,
               reps: reps,
               dayGroup: dayGroup ?? e.dayGroup,
+              isBodyweight: isBodyweight ?? e.isBodyweight,
             );
           }
           return e;

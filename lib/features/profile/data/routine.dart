@@ -3,12 +3,14 @@ class RoutineExercise {
   final int sets;
   final int reps;
   final String dayGroup; // E.g., 'Día A', 'Día B', etc.
+  final bool isBodyweight;
 
   RoutineExercise({
     required this.name,
     required this.sets,
     required this.reps,
     this.dayGroup = 'Día A',
+    this.isBodyweight = false,
   });
 
   Map<String, dynamic> toJson() {
@@ -17,6 +19,7 @@ class RoutineExercise {
       'sets': sets,
       'reps': reps,
       'dayGroup': dayGroup,
+      'isBodyweight': isBodyweight,
     };
   }
 
@@ -26,6 +29,7 @@ class RoutineExercise {
       sets: json['sets'] as int? ?? 4,
       reps: json['reps'] as int? ?? 10,
       dayGroup: json['dayGroup'] as String? ?? 'Día A',
+      isBodyweight: json['isBodyweight'] as bool? ?? false,
     );
   }
 
@@ -34,12 +38,14 @@ class RoutineExercise {
     int? sets,
     int? reps,
     String? dayGroup,
+    bool? isBodyweight,
   }) {
     return RoutineExercise(
       name: name ?? this.name,
       sets: sets ?? this.sets,
       reps: reps ?? this.reps,
       dayGroup: dayGroup ?? this.dayGroup,
+      isBodyweight: isBodyweight ?? this.isBodyweight,
     );
   }
 }

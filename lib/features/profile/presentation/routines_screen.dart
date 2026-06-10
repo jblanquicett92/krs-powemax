@@ -128,6 +128,7 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
     _newExerciseController.clear();
     _setsController.text = '4';
     _repsController.text = '10';
+    bool isBodyweight = false;
 
     final history = ref.read(historyProvider);
     final routines = ref.read(routinesProvider);
@@ -161,6 +162,26 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
     }.where((e) => !currentRoutineExercises.contains(e)).toSet();
 
     final customDayController = TextEditingController(text: defaultDay);
+    final existingDays = currentRoutine.exercises
+        .map((e) => e.dayGroup.trim())
+        .where((d) => d.isNotEmpty)
+        .toSet();
+    final List<String> allDayOptions;
+    if (existingDays.isEmpty) {
+      allDayOptions = [
+        'Día A',
+        'Día B',
+        'Día C',
+        'Día D',
+        'Empuje',
+        'Jalón',
+        'Pierna',
+        'Torso',
+        'Extremidades',
+      ]..sort();
+    } else {
+      allDayOptions = existingDays.toList()..sort();
+    }
 
     showDialog(
       context: context,
@@ -425,6 +446,24 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
                         ),
                       ],
                     ),
+                    SwitchListTile(
+                      title: Text(
+                        "Es peso corporal",
+                        style: GoogleFonts.spaceGrotesk(color: Colors.white, fontSize: 13),
+                      ),
+                      subtitle: Text(
+                        "Calcula RM basado en reps",
+                        style: GoogleFonts.spaceGrotesk(color: Colors.white38, fontSize: 10),
+                      ),
+                      value: isBodyweight,
+                      activeColor: AppTheme.voltYellow,
+                      contentPadding: EdgeInsets.zero,
+                      onChanged: (val) {
+                        setStateDialog(() {
+                          isBodyweight = val;
+                        });
+                      },
+                    ),
                     const SizedBox(height: 16),
 
                     // Selector de Grupo/Día de Rutina (Personalizable)
@@ -438,22 +477,76 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
                       ),
                     ),
                     const SizedBox(height: 6),
-                    TextField(
-                      controller: customDayController,
-                      style: GoogleFonts.spaceGrotesk(color: Colors.white),
-                      decoration: InputDecoration(
-                        hintText: 'Ej. Día A, Empuje, Piernas...',
-                        hintStyle: GoogleFonts.spaceGrotesk(color: Colors.white30, fontSize: 13),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: AppTheme.dividerColor),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: AppTheme.voltYellow),
-                        ),
-                      ),
+                    Autocomplete<String>(
+                      optionsBuilder: (TextEditingValue textEditingValue) {
+                        final query = textEditingValue.text.toLowerCase().trim();
+                        if (query.isEmpty) {
+                          return allDayOptions;
+                        }
+                        return allDayOptions.where((option) => option.toLowerCase().contains(query));
+                      },
+                      onSelected: (String selection) {
+                        customDayController.text = selection;
+                      },
+                      fieldViewBuilder: (context, textEditingController, focusNode, onFieldSubmitted) {
+                        textEditingController.text = customDayController.text;
+                        textEditingController.addListener(() {
+                          customDayController.text = textEditingController.text;
+                        });
+                        return TextField(
+                          controller: textEditingController,
+                          focusNode: focusNode,
+                          style: GoogleFonts.spaceGrotesk(color: Colors.white),
+                          decoration: InputDecoration(
+                            hintText: 'Ej. Día A, Empuje, Piernas...',
+                            hintStyle: GoogleFonts.spaceGrotesk(color: Colors.white30, fontSize: 13),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: AppTheme.dividerColor),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(color: AppTheme.voltYellow),
+                            ),
+                          ),
+                        );
+                      },
+                      optionsViewBuilder: (context, onSelected, options) {
+                        return Align(
+                          alignment: Alignment.topLeft,
+                          child: Material(
+                            elevation: 4,
+                            color: AppTheme.midnightGrey,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              side: const BorderSide(color: AppTheme.dividerColor),
+                            ),
+                            child: Container(
+                              width: 250,
+                              constraints: const BoxConstraints(maxHeight: 200),
+                              child: ListView.builder(
+                                padding: EdgeInsets.zero,
+                                shrinkWrap: true,
+                                itemCount: options.length,
+                                itemBuilder: (BuildContext context, int index) {
+                                  final String option = options.elementAt(index);
+                                  return ListTile(
+                                    dense: true,
+                                    title: Text(
+                                      option,
+                                      style: GoogleFonts.spaceGrotesk(color: Colors.white, fontSize: 13),
+                                    ),
+                                    onTap: () {
+                                      onSelected(option);
+                                    },
+                                  );
+                                },
+                              ),
+                            ),
+                          ),
+                        );
+                      },
                     ),
                     
                     // Sección de sugerencias rápidas de marcas sin rutina
@@ -543,6 +636,7 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
                             sets: s,
                             reps: r,
                             dayGroup: finalDay,
+                            isBodyweight: isBodyweight,
                           );
                       Navigator.pop(context);
                     }
@@ -572,6 +666,7 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
     final setsController = TextEditingController(text: exercise.sets.toString());
     final repsController = TextEditingController(text: exercise.reps.toString());
     final customDayController = TextEditingController(text: exercise.dayGroup);
+    bool isBodyweight = exercise.isBodyweight;
 
     final routines = ref.read(routinesProvider);
 
@@ -733,6 +828,24 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
                         ),
                       ],
                     ),
+                    SwitchListTile(
+                      title: Text(
+                        "Es peso corporal",
+                        style: GoogleFonts.spaceGrotesk(color: Colors.white, fontSize: 13),
+                      ),
+                      subtitle: Text(
+                        "Calcula RM basado en reps",
+                        style: GoogleFonts.spaceGrotesk(color: Colors.white38, fontSize: 10),
+                      ),
+                      value: isBodyweight,
+                      activeColor: AppTheme.voltYellow,
+                      contentPadding: EdgeInsets.zero,
+                      onChanged: (val) {
+                        setStateDialog(() {
+                          isBodyweight = val;
+                        });
+                      },
+                    ),
                     const SizedBox(height: 16),
                     
                     // Selector de Grupo/Día de Rutina (Personalizable)
@@ -787,6 +900,7 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
                           s,
                           r,
                           dayGroup: finalDay,
+                          isBodyweight: isBodyweight,
                         );
                     Navigator.pop(context);
                   },

@@ -13,11 +13,18 @@ import '../../history/data/workout_record.dart';
 import '../../history/state/history_notifier.dart';
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 import 'package:flutter/services.dart';
 
 final selectedRoutineIdProvider = StateProvider<String?>((ref) => null);
-final currentExerciseNameProvider = StateProvider<String?>((ref) => null);
-final selectedDayIndexProvider = StateProvider.autoDispose<int>((ref) => 0);
+final currentExerciseNameProvider = Provider<String?>((ref) {
+  final settings = ref.watch(settingsProvider);
+  return settings.selectedExerciseName.isEmpty ? null : settings.selectedExerciseName;
+});
+final selectedDayIndexProvider = Provider<int>((ref) {
+  final settings = ref.watch(settingsProvider);
+  return settings.selectedDayIndex;
+});
 
 // Override de sets/reps solo para la sesión actual (no persiste en la rutina)
 // Clave: nombre del ejercicio, Valor: (sets, reps)
@@ -98,7 +105,7 @@ class CalculatorScreen extends ConsumerWidget {
                     IconButton(
                       icon: const Icon(Icons.close, size: 16, color: Colors.white38),
                       onPressed: () {
-                        ref.read(currentExerciseNameProvider.notifier).state = null;
+                        ref.read(settingsProvider.notifier).setSelectedExerciseName('');
                       },
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
@@ -210,9 +217,27 @@ class CalculatorScreen extends ConsumerWidget {
     final zones = calcState.trainingZones;
     if (zones.isEmpty) return const SizedBox.shrink();
 
-    // Calcular el porcentaje aproximado del usuario para destacar su zona activa
+    final activeExercise = ref.read(currentExerciseNameProvider);
+    final routines = ref.read(routinesProvider);
+    final settings = ref.read(settingsProvider);
+    bool isBodyweight = false;
+    if (activeExercise != null && routines.isNotEmpty) {
+      final selectedRoutine = routines.firstWhere(
+        (r) => r.id == settings.selectedRoutineId,
+        orElse: () => routines.first,
+      );
+      final exercise = selectedRoutine.exercises.firstWhere(
+        (e) => e.name.toLowerCase() == activeExercise.toLowerCase(),
+        orElse: () => RoutineExercise(name: '', sets: 0, reps: 0),
+      );
+      isBodyweight = exercise.name.isNotEmpty && exercise.isBodyweight;
+    }
+
+    final String displayUnit = unit;
+
+    // Calcular el porcentaje aproximado del usuario para destacar su zona activa (considera peso corporal)
     final double userPct = calcState.calculated1RM > 0 
-        ? (calcState.weight / calcState.calculated1RM) * 100 
+        ? (((isBodyweight ? settings.userWeight : 0.0) + calcState.weight) / calcState.calculated1RM) * 100 
         : 0.0;
     final int targetPct = (userPct / 5).round() * 5;
     final int activePct = targetPct.clamp(50, 100);
@@ -316,7 +341,7 @@ class CalculatorScreen extends ConsumerWidget {
               ),
               // Peso correspondiente
               Text(
-                "${zone.calculatedWeight} $unit",
+                "${zone.calculatedWeight} $displayUnit",
                 style: GoogleFonts.spaceGrotesk(
                   fontSize: isTargetZone ? 18 : 16,
                   fontWeight: FontWeight.bold,
@@ -355,6 +380,8 @@ class CalculatorScreen extends ConsumerWidget {
     // Obtener lista única de ejercicios ya guardados en el historial
     final records = ref.read(historyProvider);
     final List<String> savedExercises = records.map((r) => r.exerciseName).toSet().toList();
+
+    final String displayUnit = unit;
 
     showDialog(
       context: context,
@@ -412,7 +439,7 @@ class CalculatorScreen extends ConsumerWidget {
                     children: [
                       const Text("1RM Estimado:", style: TextStyle(color: Colors.white60, fontSize: 13)),
                       Text(
-                        "${calcState.calculated1RM} $unit",
+                        "${calcState.calculated1RM} $displayUnit",
                         style: const TextStyle(color: AppTheme.voltYellow, fontWeight: FontWeight.bold, fontSize: 14),
                       ),
                     ],
@@ -440,27 +467,45 @@ class CalculatorScreen extends ConsumerWidget {
                   return;
                 }
 
+                final exerciseRecords = records.where((r) =>
+                    r.exerciseName.trim().toLowerCase() == actualName.trim().toLowerCase());
+                final bool isNewRecord = exerciseRecords.isEmpty ||
+                    calcState.calculated1RM >
+                        exerciseRecords
+                            .map((r) => r.oneRepMax)
+                            .reduce((a, b) => a > b ? a : b);
+
                 historyNotifier.addRecord(
                   exerciseName: actualName,
                   weight: calcState.weight,
                   reps: calcState.reps,
                   oneRepMax: calcState.calculated1RM,
-                  unit: unit,
+                  unit: displayUnit,
                   formula: calcState.formula,
                 );
 
                 Navigator.pop(ctx);
 
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(ctx.tr('calc_success_save', ref)),
-                    backgroundColor: AppTheme.voltYellow,
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-
-                final settings = ref.read(settingsProvider);
-                _showRestTimerDialog(context, ref, settings.restTimeBetweenExercises);
+                if (isNewRecord) {
+                  HapticFeedback.vibrate();
+                  Future.delayed(const Duration(milliseconds: 150), () {
+                    HapticFeedback.vibrate();
+                  });
+                  _showNewRecordCelebration(context, () {
+                    final settings = ref.read(settingsProvider);
+                    _showRestTimerDialog(context, ref, settings.restTimeBetweenExercises);
+                  });
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(ctx.tr('calc_success_save', ref)),
+                      backgroundColor: AppTheme.voltYellow,
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                  final settings = ref.read(settingsProvider);
+                  _showRestTimerDialog(context, ref, settings.restTimeBetweenExercises);
+                }
 
                 // Auto-advance to the next exercise if sets completed
                 if (activeExercise != null) {
@@ -488,7 +533,7 @@ class CalculatorScreen extends ConsumerWidget {
                       if (todayCount >= currentExConfig.sets) {
                         if (currentExIndex + 1 < exercises.length) {
                           final nextEx = exercises[currentExIndex + 1];
-                          ref.read(currentExerciseNameProvider.notifier).state = nextEx.name;
+                          ref.read(settingsProvider.notifier).setSelectedExerciseName(nextEx.name);
                           final historyList = ref.read(historyProvider);
                           final nextExRecords = historyList.where((r) =>
                               r.exerciseName.trim().toLowerCase() == nextEx.name.trim().toLowerCase());
@@ -718,7 +763,7 @@ class CalculatorScreen extends ConsumerWidget {
                                     final isActive = safeIndex == idx;
                                     return InkWell(
                                       onTap: () {
-                                        ref.read(selectedDayIndexProvider.notifier).state = idx;
+                                        ref.read(settingsProvider.notifier).setSelectedDayIndex(idx);
                                         Navigator.pop(ctx);
                                       },
                                       borderRadius: BorderRadius.circular(12),
@@ -1058,7 +1103,7 @@ class CalculatorScreen extends ConsumerWidget {
                       }
                       
                       if (ref.read(currentExerciseNameProvider) == exercise.name) {
-                        ref.read(currentExerciseNameProvider.notifier).state = null;
+                        ref.read(settingsProvider.notifier).setSelectedExerciseName('');
                       }
 
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -1076,9 +1121,9 @@ class CalculatorScreen extends ConsumerWidget {
                           : () {
                               // Seleccionar o deseleccionar
                               if (isSelected) {
-                                ref.read(currentExerciseNameProvider.notifier).state = null;
+                                ref.read(settingsProvider.notifier).setSelectedExerciseName('');
                               } else {
-                                ref.read(currentExerciseNameProvider.notifier).state = exercise.name;
+                                ref.read(settingsProvider.notifier).setSelectedExerciseName(exercise.name);
                                 final historyList = ref.read(historyProvider);
                                 final exRecords = historyList.where((r) =>
                                     r.exerciseName.trim().toLowerCase() ==
@@ -1769,7 +1814,7 @@ class CalculatorScreen extends ConsumerWidget {
         );
         // 3. Si el ejercicio activo era el que cambiamos, actualizar el estado
         if (ref.read(currentExerciseNameProvider) == oldExercise.name) {
-          ref.read(currentExerciseNameProvider.notifier).state = newName.trim();
+          ref.read(settingsProvider.notifier).setSelectedExerciseName(newName.trim());
           final historyList = ref.read(historyProvider);
           final exRecords = historyList.where((r) =>
               r.exerciseName.trim().toLowerCase() ==
@@ -2192,7 +2237,10 @@ class _WeightSelectorInputState extends State<WeightSelectorInput> {
             max: widget.maxWeight,
             divisions: ((widget.maxWeight - widget.minWeight) * 2).toInt().clamp(1, 1200),
             label: widget.value.toStringAsFixed(1),
-            onChanged: widget.onChanged,
+            onChanged: (val) {
+              HapticFeedback.selectionClick();
+              widget.onChanged(val);
+            },
           ),
         ],
       ),
@@ -2303,6 +2351,7 @@ class _RepsSelectorInputState extends State<RepsSelectorInput> {
             divisions: (widget.maxReps - widget.minReps).clamp(1, 100),
             label: widget.value.toString(),
             onChanged: (val) {
+              HapticFeedback.selectionClick();
               widget.onChanged(val.toInt());
             },
           ),
@@ -2523,4 +2572,203 @@ class _RestTimerDialogState extends State<RestTimerDialog> {
       ),
     );
   }
+}
+
+void _showNewRecordCelebration(BuildContext context, VoidCallback onFinished) {
+  showGeneralDialog(
+    context: context,
+    barrierDismissible: false,
+    barrierColor: Colors.black.withOpacity(0.75),
+    transitionDuration: const Duration(milliseconds: 300),
+    pageBuilder: (context, animation, secondaryAnimation) {
+      return RecordCelebrationWidget(onFinished: onFinished);
+    },
+  );
+}
+
+class RecordCelebrationWidget extends StatefulWidget {
+  final VoidCallback onFinished;
+  const RecordCelebrationWidget({super.key, required this.onFinished});
+
+  @override
+  State<RecordCelebrationWidget> createState() => _RecordCelebrationWidgetState();
+}
+
+class _RecordCelebrationWidgetState extends State<RecordCelebrationWidget>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  final List<_ConfettiParticle> _particles = [];
+  final math.Random _random = math.Random();
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 4),
+    );
+
+    // Initialize particles
+    for (int i = 0; i < 80; i++) {
+      _particles.add(_ConfettiParticle(
+        x: _random.nextDouble(),
+        y: _random.nextDouble() * -0.5, // start above screen
+        size: _random.nextDouble() * 8 + 4,
+        color: HSVColor.fromAHSV(
+          1.0,
+          _random.nextDouble() * 360,
+          0.8,
+          0.9,
+        ).toColor(),
+        speedY: _random.nextDouble() * 0.02 + 0.01,
+        speedX: (_random.nextDouble() - 0.5) * 0.01,
+        rotation: _random.nextDouble() * 2 * math.pi,
+        rotationSpeed: (_random.nextDouble() - 0.5) * 0.2,
+      ));
+    }
+
+    _controller.addListener(() {
+      setState(() {
+        for (var p in _particles) {
+          p.y += p.speedY;
+          p.x += p.speedX;
+          p.rotation += p.rotationSpeed;
+        }
+      });
+    });
+
+    _controller.forward();
+
+    _timer = Timer(const Duration(seconds: 4), () {
+      if (mounted) {
+        Navigator.of(context).pop();
+        widget.onFinished();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: Stack(
+        children: [
+          // Confetti painter
+          Positioned.fill(
+            child: CustomPaint(
+              painter: _ConfettiPainter(particles: _particles),
+            ),
+          ),
+          // Central Trophy & Text with entry scale/bounce animation
+          Center(
+            child: ScaleTransition(
+              scale: CurvedAnimation(
+                parent: _controller,
+                curve: const Interval(0.0, 0.4, curve: Curves.elasticOut),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.emoji_events, // Beautiful trophy cup ("copita")
+                    size: 100,
+                    color: AppTheme.voltYellow,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    "¡NUEVO RM HISTÓRICO!",
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.spaceGrotesk(
+                      color: AppTheme.voltYellow,
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.5,
+                      shadows: [
+                        Shadow(
+                          color: Colors.black.withOpacity(0.5),
+                          offset: const Offset(2, 2),
+                          blurRadius: 4,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    "¡Felicidades, vas superando tus límites!",
+                    style: GoogleFonts.outfit(
+                      color: Colors.white70,
+                      fontSize: 16,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ConfettiParticle {
+  double x;
+  double y;
+  final double size;
+  final Color color;
+  final double speedY;
+  final double speedX;
+  double rotation;
+  final double rotationSpeed;
+
+  _ConfettiParticle({
+    required this.x,
+    required this.y,
+    required this.size,
+    required this.color,
+    required this.speedY,
+    required this.speedX,
+    required this.rotation,
+    required this.rotationSpeed,
+  });
+}
+
+class _ConfettiPainter extends CustomPainter {
+  final List<_ConfettiParticle> particles;
+
+  _ConfettiPainter({required this.particles});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    for (var p in particles) {
+      if (p.y < 0 || p.y > 1 || p.x < 0 || p.x > 1) continue;
+
+      final paint = Paint()
+        ..color = p.color
+        ..style = PaintingStyle.fill;
+
+      canvas.save();
+      // Translate to particle center
+      canvas.translate(p.x * size.width, p.y * size.height);
+      canvas.rotate(p.rotation);
+
+      // Draw a small rectangle/square representing confetti
+      canvas.drawRect(
+        Rect.fromCenter(center: Offset.zero, width: p.size, height: p.size / 2),
+        paint,
+      );
+
+      canvas.restore();
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
