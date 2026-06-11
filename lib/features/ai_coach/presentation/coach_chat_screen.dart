@@ -209,6 +209,35 @@ class _CoachChatScreenState extends ConsumerState<CoachChatScreen> {
           ),
         ),
 
+        // BANNER DE ERROR (IA Temporalmente fuera de línea)
+        if (state.error != null)
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
+            decoration: BoxDecoration(
+              color: Colors.redAccent.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.redAccent.withOpacity(0.2)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.cloud_off_rounded, color: Colors.redAccent, size: 20),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    state.error!,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.8),
+                      fontSize: 12.5,
+                      height: 1.3,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
         // HISTORIAL DE MENSAJES
         Expanded(
           child: ListView.builder(
@@ -260,9 +289,14 @@ class _CoachChatScreenState extends ConsumerState<CoachChatScreen> {
                 Expanded(
                   child: TextField(
                     controller: _messageController,
+                    enabled: !state.isThinking && state.error == null,
                     style: GoogleFonts.spaceGrotesk(color: Colors.white, fontSize: 15),
                     decoration: InputDecoration(
-                      hintText: context.tr('ai_chat_hint', ref),
+                      hintText: state.isThinking 
+                          ? "El coach está escribiendo..." 
+                          : state.error != null 
+                              ? "Reconectando con el coach..." 
+                              : context.tr('ai_chat_hint', ref),
                       hintStyle: GoogleFonts.spaceGrotesk(color: Colors.white24, fontSize: 14),
                       fillColor: AppTheme.darkCarbon,
                       filled: true,
@@ -278,10 +312,12 @@ class _CoachChatScreenState extends ConsumerState<CoachChatScreen> {
                 const SizedBox(width: 8),
                 CircleAvatar(
                   radius: 22,
-                  backgroundColor: AppTheme.voltYellow,
+                  backgroundColor: (!state.isThinking && state.error == null) ? AppTheme.voltYellow : Colors.white12,
                   child: IconButton(
-                    icon: const Icon(Icons.send, color: AppTheme.darkCarbon, size: 18),
-                    onPressed: () => _handleSendMessage(_messageController.text, notifier),
+                    icon: Icon(Icons.send, color: (!state.isThinking && state.error == null) ? AppTheme.darkCarbon : Colors.white30, size: 18),
+                    onPressed: (!state.isThinking && state.error == null) 
+                        ? () => _handleSendMessage(_messageController.text, notifier)
+                        : null,
                   ),
                 ),
               ],
@@ -511,6 +547,8 @@ class _CoachChatScreenState extends ConsumerState<CoachChatScreen> {
   }
 
   void _handleSendMessage(String text, CoachNotifier notifier) {
+    final state = ref.read(coachProvider);
+    if (state.isThinking || state.error != null) return;
     if (text.trim().isEmpty) return;
     _messageController.clear();
     notifier.sendMessage(text);

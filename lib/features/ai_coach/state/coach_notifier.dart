@@ -341,11 +341,16 @@ class CoachNotifier extends StateNotifier<CoachState> {
         historyContext = " Ejercicio activo: '${state.activeExercise}'. El usuario aún no tiene marcas. Aconséjale registrar una en la calculadora.";
       }
       systemPrompt += historyContext;
+      systemPrompt += " Eres el coach en el chat específico del ejercicio '${state.activeExercise}'. IMPORTANTE: Sé extremadamente directo, puntual y concreto. Ve al grano de inmediato con recomendaciones puntuales sobre este ejercicio (técnica, progresión de carga o marcas), sin introducciones largas, saludos ni rodeos. NO recomiendes ni sugieras rutinas generales, rutinas completas ni divisiones de entrenamiento aquí.";
     } else {
       systemPrompt += " No hay ejercicio activo seleccionado (modo de consulta General). Evita sugerir pesos o cargas exactas en tus respuestas para ejercicios particulares a menos que el usuario te proporcione explícitamente sus marcas en su mensaje. Aconséjale amablemente seleccionar un ejercicio en la calculadora de 1RM para obtener planes de carga y progresiones personalizadas.";
     }
 
-    systemPrompt += " INSTRUCCIÓN CRÍTICA DE INTERACCIÓN: Si recomiendas o sugieres una rutina de las configuradas del usuario, debes incluir obligatoriamente al final de tu mensaje el enlace interactivo con el formato exacto `[Activar rutina: NOMBRE](routine://select?id=ID)` (sustituyendo NOMBRE por el nombre exacto de la rutina y ID por el ID exacto correspondiente de la lista proporcionada, por ejemplo: `default_arnold_split` o `default_push_pull`). No agregues enlaces para ejercicios individuales.";
+    if (state.activeExercise == 'General') {
+      systemPrompt += " INSTRUCCIÓN CRÍTICA DE INTERACCIÓN: Si recomiendas o sugieres una rutina de las configuradas del usuario, debes incluir obligatoriamente al final de tu mensaje el enlace interactivo con el formato exacto `[Activar rutina: NOMBRE](routine://select?id=ID)` (sustituyendo NOMBRE por el nombre exacto de la rutina y ID por el ID exacto correspondiente de la lista proporcionada, por ejemplo: `default_arnold_split` o `default_push_pull`). No agregues enlaces para ejercicios individuales.";
+    } else {
+      systemPrompt += " INSTRUCCIÓN CRÍTICA: NO recomiendes rutinas completas ni muestres ningún enlace para activar rutinas (como `routine://select?id=...`) en este chat de ejercicio específico.";
+    }
 
     systemPrompt += " REGLAS DE FORMATO: No uses emojis en ninguna respuesta. Usa formato Markdown (negrita, listas, encabezados) para estructurar el texto cuando sea útil, pero nunca emojis.";
 
@@ -508,6 +513,7 @@ class CoachNotifier extends StateNotifier<CoachState> {
     state = state.copyWith(
       messages: updatedMessages,
       isThinking: true,
+      error: null,
     );
 
     // Guardar inmediatamente el mensaje del usuario
@@ -551,6 +557,9 @@ class CoachNotifier extends StateNotifier<CoachState> {
           if (responseText.startsWith("Error al conectar") || responseText.startsWith("Error de conexión")) {
             throw Exception(responseText);
           }
+          if (responseText.trim().isEmpty) {
+            throw Exception("El coach no ha podido generar una respuesta válida.");
+          }
 
           print("==================== IA OUTPUT RESPONSE (GEMINI) ====================");
           print("Response: $responseText");
@@ -563,24 +572,34 @@ class CoachNotifier extends StateNotifier<CoachState> {
             ],
             isThinking: false,
             isUsingLocalAI: false,
+            error: null,
           );
           await _saveConversationsToPrefs();
         } catch (e) {
           print("==================== ERROR EN GEMINI API ====================");
-          print("Error: $e");
-          print("=============================================================");
-          
+          final errStr = e.toString();
+          if (errStr.contains("429") || errStr.contains("Código 429")) {
+            state = state.copyWith(
+              isThinking: false,
+              error: "El servicio de Inteligencia Artificial está temporalmente saturado debido a la alta demanda. Por favor, espera un minuto e inténtalo de nuevo.",
+            );
+            await _saveConversationsToPrefs();
+            return;
+          }
+
           final restMsg = ChatMessage(
             text: "Tu entrenador está tomando un descanso, pronto se pondrá en contacto.",
             isUser: false,
           );
+          final hasRestMsg = state.messages.isNotEmpty && state.messages.last.text.contains("tomando un descanso");
           state = state.copyWith(
-            messages: [...state.messages, restMsg],
+            messages: hasRestMsg ? state.messages : [...state.messages, restMsg],
             isThinking: false,
+            error: "El servicio de Inteligencia Artificial está temporalmente saturado (503) o sin conexión. Tu entrenador responderá en cuanto vuelva a estar disponible.",
           );
           await _saveConversationsToPrefs();
           
-          _retryMessage(text, systemPrompt, settings.geminiApiKey, 'gemini', '');
+          _retryMessage(text, systemPrompt, settings.geminiApiKey, 'gemini', '', retryCount: 0);
         }
       } else {
         // Hugging Face API Mode
@@ -594,6 +613,9 @@ class CoachNotifier extends StateNotifier<CoachState> {
           if (responseText.startsWith("Error al conectar") || responseText.startsWith("Error de conexión")) {
             throw Exception(responseText);
           }
+          if (responseText.trim().isEmpty) {
+            throw Exception("El coach no ha podido generar una respuesta válida.");
+          }
 
           print("==================== IA OUTPUT RESPONSE (HUGGINGFACE) ====================");
           print("Response: $responseText");
@@ -606,24 +628,34 @@ class CoachNotifier extends StateNotifier<CoachState> {
             ],
             isThinking: false,
             isUsingLocalAI: false,
+            error: null,
           );
           await _saveConversationsToPrefs();
         } catch (e) {
           print("==================== ERROR EN HUGGING FACE API ====================");
-          print("Error: $e");
-          print("====================================================================");
-          
+          final errStr = e.toString();
+          if (errStr.contains("429") || errStr.contains("Código 429")) {
+            state = state.copyWith(
+              isThinking: false,
+              error: "El servicio de Inteligencia Artificial está temporalmente saturado debido a la alta demanda. Por favor, espera un minuto e inténtalo de nuevo.",
+            );
+            await _saveConversationsToPrefs();
+            return;
+          }
+
           final restMsg = ChatMessage(
             text: "Tu entrenador está tomando un descanso, pronto se pondrá en contacto.",
             isUser: false,
           );
+          final hasRestMsg = state.messages.isNotEmpty && state.messages.last.text.contains("tomando un descanso");
           state = state.copyWith(
-            messages: [...state.messages, restMsg],
+            messages: hasRestMsg ? state.messages : [...state.messages, restMsg],
             isThinking: false,
+            error: "El servicio de Inteligencia Artificial está temporalmente saturado o sin conexión. Tu entrenador responderá en cuanto vuelva a estar disponible.",
           );
           await _saveConversationsToPrefs();
           
-          _retryMessage(text, systemPrompt, '', 'huggingface', settings.huggingFaceToken);
+          _retryMessage(text, systemPrompt, '', 'huggingface', settings.huggingFaceToken, retryCount: 0);
         }
       }
       return;
@@ -632,8 +664,15 @@ class CoachNotifier extends StateNotifier<CoachState> {
     _fallbackResponse(text);
   }
 
-  void _retryMessage(String originalText, String systemPrompt, String apiKey, String provider, String token) async {
-    await Future.delayed(const Duration(seconds: 10));
+  void _retryMessage(String originalText, String systemPrompt, String apiKey, String provider, String token, {int retryCount = 0}) async {
+    if (retryCount >= 3) {
+      state = state.copyWith(
+        isThinking: false,
+        error: "No se pudo conectar con el coach tras varios intentos. Por favor, inténtalo más tarde.",
+      );
+      return;
+    }
+    await Future.delayed(Duration(seconds: 15 * (retryCount + 1)));
 
     try {
       final String responseText;
@@ -653,8 +692,19 @@ class CoachNotifier extends StateNotifier<CoachState> {
         );
       }
 
-      if (responseText.startsWith("Error al conectar") || responseText.startsWith("Error de conexión")) {
-        _retryMessage(originalText, systemPrompt, apiKey, provider, token);
+      if (responseText.contains("429") || responseText.contains("Código 429")) {
+        state = state.copyWith(
+          error: "El servicio de Inteligencia Artificial está temporalmente saturado debido a la alta demanda. Por favor, espera un minuto e inténtalo de nuevo.",
+          isThinking: false,
+        );
+        return;
+      }
+
+      if (responseText.startsWith("Error al conectar") || responseText.startsWith("Error de conexión") || responseText.trim().isEmpty) {
+        state = state.copyWith(
+          error: "El servicio de Inteligencia Artificial está temporalmente saturado (503) o sin conexión. Reintentando...",
+        );
+        _retryMessage(originalText, systemPrompt, apiKey, provider, token, retryCount: retryCount + 1);
       } else {
         final cleanMessages = state.messages.where((m) => !m.text.contains("tomando un descanso")).toList();
         state = state.copyWith(
@@ -662,6 +712,7 @@ class CoachNotifier extends StateNotifier<CoachState> {
             ...cleanMessages,
             ChatMessage(text: responseText, isUser: false),
           ],
+          error: null,
         );
         await _saveConversationsToPrefs();
 
@@ -673,7 +724,10 @@ class CoachNotifier extends StateNotifier<CoachState> {
         ref.read(coachNotificationProvider.notifier).state = "¡Tu entrenador $coachLabel ha respondido!";
       }
     } catch (_) {
-      _retryMessage(originalText, systemPrompt, apiKey, provider, token);
+      state = state.copyWith(
+        error: "El servicio de Inteligencia Artificial está temporalmente saturado (503) o sin conexión. Reintentando...",
+      );
+      _retryMessage(originalText, systemPrompt, apiKey, provider, token, retryCount: retryCount + 1);
     }
   }
 
@@ -891,6 +945,13 @@ class CoachNotifier extends StateNotifier<CoachState> {
         contents.add({
           "role": msg.isUser ? "user" : "model",
           "parts": [{"text": msg.text}]
+        });
+      }
+
+      if (contents.isEmpty) {
+        contents.add({
+          "role": "user",
+          "parts": [{"text": "Hola"}]
         });
       }
 
